@@ -20,8 +20,8 @@ await server.register(fastifyJwt, {
 
 await server.register(cors, {
   origin: [
-    "http://localhost:3333",
-    "https://frontend-loan-production.up.railway.app/",
+    "http://localhost:5173",
+    "https://frontend-loan-production.up.railway.app",
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
 });
