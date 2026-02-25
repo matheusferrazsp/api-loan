@@ -115,12 +115,23 @@ export const login = async (request, reply) => {
       return reply.status(401).send({ error: "Email ou senha inválidos" });
     }
 
+    const token = await reply.jwtSign(
+      {
+        id: user.id,
+        email: user.email,
+      },
+      {
+        expiresIn: "7d",
+      },
+    );
+
     return reply.send({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
       },
+      token,
     });
   } catch (error) {
     console.error("Erro ao fazer login:", error);

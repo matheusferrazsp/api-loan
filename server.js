@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { fastify } from "fastify";
+import fastifyJwt from "@fastify/jwt";
 import cors from "@fastify/cors"; // 1. Importe o plugin de CORS
 import { userRoutes } from "./src/routes/users.js";
 
@@ -12,8 +13,10 @@ const server = fastify({
   logger: true,
 });
 
-// 2. Registre o CORS antes de qualquer rota
-// "origin: true" permite que seu front-end local acesse a API sem restrições
+await server.register(fastifyJwt, {
+  secret: process.env.JWT_SECRET,
+});
+
 await server.register(cors, {
   origin: true,
   methods: ["GET", "POST", "PUT", "DELETE"],
