@@ -5,6 +5,7 @@ import { fastify } from "fastify";
 import fastifyJwt from "@fastify/jwt";
 import cors from "@fastify/cors"; // 1. Importe o plugin de CORS
 import { userRoutes } from "./src/routes/users.js";
+import { clientRoutes } from "./src/routes/clients.js";
 
 const PORT = process.env.PORT || 3333;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -24,6 +25,7 @@ await server.register(cors, {
 
 // Registrar rotas
 server.register(userRoutes, { prefix: "/api" });
+server.register(clientRoutes, { prefix: "/api" });
 
 // Health check
 server.get("/health", async () => {

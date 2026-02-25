@@ -14,4 +14,42 @@ model User {
   password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  clients Client[]
+}
+
+model Client {
+  id                 String   @id @default(uuid())
+  name               String
+  email              String  
+  cpf                String   
+  phone              String
+  address            String
+  
+  // Dados do Empréstimo
+  value              Decimal  @db.Decimal(10, 2)
+  loanInterest       Decimal  @db.Decimal(5, 2) // Ex: 20.00 para 20%
+  installments       Int
+  installmentsPaid   Int      @default(0)
+  lateInstallments   Int      @default(0)
+  
+  // Financeiro acumulado
+  valuePaid          Decimal  @default(0) @db.Decimal(10, 2)
+  monthlyPaid        Decimal  @default(0) @db.Decimal(10, 2)
+  
+  // Datas
+  loanDate           DateTime @default(now())
+  nextPaymentDate    DateTime?
+  lastPaymentDate    DateTime?
+  
+  // Status
+  monthlyFeePaid     Boolean  @default(false)
+  totalDebtPaid      Boolean  @default(false)
+  observations       String?  @db.Text
+
+  // Relacionamento: Quem cadastrou esse cliente?
+  userId             Int
+  user               User     @relation(fields: [userId], references: [id])
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
