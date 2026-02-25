@@ -27,8 +27,8 @@ await server.register(cors, {
 });
 
 // Registrar rotas
-server.register(userRoutes, { prefix: "/api" });
-server.register(clientRoutes, { prefix: "/api" });
+server.register(userRoutes);
+server.register(clientRoutes);
 
 // Health check
 server.get("/health", async () => {
