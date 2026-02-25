@@ -47,6 +47,8 @@ export const getClients = async (request, reply) => {
       orderBy: { createdAt: "desc" },
     });
 
+    console.log("Clientes no banco:", clients);
+
     return reply.send(clients);
   } catch (error) {
     console.error("Erro ao listar clientes:", error);
