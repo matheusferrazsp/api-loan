@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma.js";
 import { transporter } from "../lib/mail.js";
 import crypto from "node:crypto";
+import { resend } from "../lib/mail.js";
 
 export const createUser = async (request, reply) => {
   try {
@@ -148,45 +149,24 @@ export const forgotPassword = async (request, reply) => {
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      return reply.send({
-        message: "Se o e-mail existir, um link foi enviado.",
-      });
+      return reply.send({ message: "Link enviado se o e-mail existir." });
     }
 
-    // Gerar token aleatório
+    // Lógica do token que já fizemos...
     const token = crypto.randomBytes(20).toString("hex");
 
-    // Definir validade (ex: agora + 1 hora)
-    const expires = new Date();
-    expires.setHours(expires.getHours() + 1);
-
-    // Salvar no banco
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordResetToken: token,
-        passwordResetExpires: expires,
-      },
+    // Chamada do Resend (é muito mais simples que o Nodemailer)
+    await resend.emails.send({
+      from: "onboarding@resend.dev", // Use este e-mail por enquanto para testes
+      to: email, // O e-mail do seu usuário
+      subject: "Redefinição de Senha - LoanX",
+      html: `<p>Clique no link para resetar a senha: <a href="https://.../reset-password?token=${token}">Resetar</a></p>`,
     });
 
-    const resetLink = `https://frontend-loan-production.up.railway.app/reset-password?token=${token}`;
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Redefinição de Senha - LoanX",
-      html: `
-        <h1>Olá, ${user.name}!</h1>
-        <p>Clique no link abaixo para redefinir sua senha (válido por 1 hora):</p>
-        <a href="${resetLink}">Redefinir Senha</a>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    return reply.send({ message: "E-mail enviado!" });
+    return reply.status(200).send({ message: "E-mail enviado via Resend!" });
   } catch (error) {
     console.error(error);
-    return reply.status(500).send({ error: "Erro ao processar." });
+    return reply.status(500).send({ error: "Erro ao enviar e-mail." });
   }
 };
 
