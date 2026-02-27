@@ -1,6 +1,5 @@
 import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma.js";
-import { transporter } from "../lib/mail.js";
 import crypto from "node:crypto";
 import { resend } from "../lib/mail.js";
 
