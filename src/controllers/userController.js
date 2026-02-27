@@ -156,10 +156,12 @@ export const forgotPassword = async (request, reply) => {
 
     // Chamada do Resend (é muito mais simples que o Nodemailer)
     await resend.emails.send({
-      from: "onboarding@resend.dev", // Use este e-mail por enquanto para testes
-      to: email, // O e-mail do seu usuário
+      from: "sistema@matheusferrazdev.com",
+      to: email,
       subject: "Redefinição de Senha - LoanX",
-      html: `<p>Clique no link para resetar a senha: <a href="https://.../reset-password?token=${token}">Resetar</a></p>`,
+      html: `<h1>Olá ${user.name}!</h1> <br>
+      <p>Clique no link abaixo para resetar a senha: <br>
+      <a href="https://.../reset-password?token=${token}">Resetar</a></p>`,
     });
 
     return reply.status(200).send({ message: "E-mail enviado via Resend!" });
