@@ -144,38 +144,48 @@ export const login = async (request, reply) => {
 export const forgotPassword = async (request, reply) => {
   try {
     const { email } = request.body;
-
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      return reply
-        .status(200)
-        .send({ message: "Se o e-mail existir, um link foi enviado." });
+      return reply.send({
+        message: "Se o e-mail existir, um link foi enviado.",
+      });
     }
 
-    // Configuração da mensagem
+    // Gerar token aleatório
+    const token = crypto.randomBytes(20).toString("hex");
+
+    // Definir validade (ex: agora + 1 hora)
+    const expires = new Date();
+    expires.setHours(expires.getHours() + 1);
+
+    // Salvar no banco
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: token,
+        passwordResetExpires: expires,
+      },
+    });
+
+    const resetLink = `https://frontend-loan-production.up.railway.app/reset-password?token=${token}`;
+
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
       subject: "Redefinição de Senha - LoanX",
       html: `
         <h1>Olá, ${user.name}!</h1>
-        <p>Você solicitou a redefinição de senha para sua conta no sistema de empréstimos.</p>
-        <p>Clique no link abaixo para criar uma nova senha:</p>
-        <a href="https://frontend-loan-production.up.railway.app/reset-password?email=${email}">Redefinir Senha</a>
-        <br/><br/>
-        <p>Se você não solicitou isso, ignore este e-mail.</p>
+        <p>Clique no link abaixo para redefinir sua senha (válido por 1 hora):</p>
+        <a href="${resetLink}">Redefinir Senha</a>
       `,
     };
 
     await transporter.sendMail(mailOptions);
-
-    return reply.status(200).send({ message: "E-mail enviado com sucesso!" });
+    return reply.send({ message: "E-mail enviado!" });
   } catch (error) {
-    console.error("Erro ao enviar e-mail:", error);
-    return reply
-      .status(500)
-      .send({ error: "Erro ao processar envio de e-mail." });
+    console.error(error);
+    return reply.status(500).send({ error: "Erro ao processar." });
   }
 };
 
@@ -183,23 +193,30 @@ export const resetPassword = async (request, reply) => {
   try {
     const { token, password } = request.body;
 
-    // 1. Em um sistema real, você buscaria o usuário pelo token salvo no banco
-    // Por enquanto, vamos buscar pelo e-mail (que você pode passar no token/URL)
+    // Busca o usuário que tenha esse token E que não tenha expirado
     const user = await prisma.user.findFirst({
-      where: { email: token }, // Simulando que o token é o e-mail para teste rápido
+      where: {
+        passwordResetToken: token,
+        passwordResetExpires: {
+          gt: new Date(), // "gt" significa maior que (data atual)
+        },
+      },
     });
 
     if (!user) {
       return reply.status(400).send({ error: "Token inválido ou expirado." });
     }
 
-    // 2. Hash da nova senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Atualizar no banco
+    // Atualiza a senha e limpa os campos de reset
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null, // Limpa para não usar de novo
+        passwordResetExpires: null,
+      },
     });
 
     return reply.send({ message: "Senha atualizada com sucesso!" });
