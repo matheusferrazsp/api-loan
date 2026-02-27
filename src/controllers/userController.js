@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma.js";
 import { transporter } from "../lib/mail.js";
+import crypto from "node:crypto";
 
 export const createUser = async (request, reply) => {
   try {
