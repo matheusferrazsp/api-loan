@@ -13,3 +13,12 @@ export const transporter = nodemailer.createTransport({
     rejectUnauthorized: false,
   },
 });
+
+// Teste de conexão
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("Erro na configuração do email:", error);
+  } else {
+    console.log("Servidor pronto para enviar mensagens!");
+  }
+});
