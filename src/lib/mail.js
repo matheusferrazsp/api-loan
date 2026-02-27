@@ -10,8 +10,11 @@ export const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
+    ciphers: "SSLv3",
     rejectUnauthorized: false,
   },
+  debug: true,
+  logger: true,
   connectionTimeout: 15000, // Aumentei um pouco para dar fôlego ao servidor
 });
 
