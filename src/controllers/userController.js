@@ -161,7 +161,7 @@ export const forgotPassword = async (request, reply) => {
       subject: "Redefinição de Senha - LoanX",
       html: `<h1>Olá ${user.name}!</h1> <br>
       <p>Clique no link abaixo para redefinir a sua senha, caso não tenha solicitado ignore este email: <br><br>
-      <a href="https://frontend-loan-production.up.railway/reset-password?token=${token}">Resetar</a></p>`,
+      <a href="https://frontend-loan-production.up.railway.app/reset-password?token=${token}">Resetar</a></p>`,
     });
 
     return reply.status(200).send({ message: "E-mail enviado via Resend!" });
