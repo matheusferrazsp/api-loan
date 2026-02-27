@@ -162,13 +162,12 @@ export const forgotPassword = async (request, reply) => {
         <h1>Olá, ${user.name}!</h1>
         <p>Você solicitou a redefinição de senha para sua conta no sistema de empréstimos.</p>
         <p>Clique no link abaixo para criar uma nova senha:</p>
-        <a href="http://localhost:5173/reset-password?email=${email}">Redefinir Senha</a>
+        <a href="https://frontend-loan-production.up.railway.app/reset-password?email=${email}">Redefinir Senha</a>
         <br/><br/>
         <p>Se você não solicitou isso, ignore este e-mail.</p>
       `,
     };
 
-    // Envia o e-mail de verdade
     await transporter.sendMail(mailOptions);
 
     return reply.status(200).send({ message: "E-mail enviado com sucesso!" });
