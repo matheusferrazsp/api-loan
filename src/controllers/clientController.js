@@ -16,6 +16,9 @@ export const createClient = async (request, reply) => {
 
     const userId = request.user.id;
 
+    const nextPaymentDate = new Date();
+    nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+
     const client = await prisma.client.create({
       data: {
         name,
@@ -26,6 +29,7 @@ export const createClient = async (request, reply) => {
         value: parseFloat(value),
         loanInterest: parseFloat(loanInterest),
         installments: parseInt(installments),
+        nextPaymentDate,
         observations,
         userId,
       },
