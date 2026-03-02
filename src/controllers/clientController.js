@@ -158,3 +158,31 @@ export const getAnnualStats = async (request, reply) => {
 
   return stats;
 };
+
+export const getClientsStatusStats = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+
+    const lateCount = await prisma.client.count({
+      where: {
+        userId,
+        lateInstallments: { gt: 0 },
+      },
+    });
+
+    const onTimeCount = await prisma.client.count({
+      where: {
+        userId,
+        lateInstallments: 0,
+      },
+    });
+
+    return reply.send([
+      { status: "pendente", value: lateCount, fill: "var(--color-chart-5)" },
+      { status: "em-dia", value: onTimeCount, fill: "var(--color-chart-2)" },
+    ]);
+  } catch (error) {
+    console.error("Erro ao obter estatísticas de status dos clientes:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
