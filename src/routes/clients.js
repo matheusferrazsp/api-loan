@@ -3,6 +3,7 @@ import {
   getClients,
   deleteClient,
   updateClient,
+  getAnnualStats,
 } from "../controllers/clientController.js";
 import { authenticate } from "../middlewares/auth.js";
 
@@ -13,4 +14,5 @@ export async function clientRoutes(fastify) {
   fastify.get("/clients", getClients);
   fastify.delete("/clients/:id", deleteClient);
   fastify.put("/clients/:id", updateClient);
+  fastify.get("/dashboard/annual-stats", getAnnualStats);
 }

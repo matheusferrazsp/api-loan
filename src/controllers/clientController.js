@@ -9,6 +9,8 @@ export const createClient = async (request, reply) => {
       phone,
       address,
       value,
+      monthlyPaid,
+      valuePaid,
       loanInterest,
       installments,
       observations,
@@ -27,6 +29,8 @@ export const createClient = async (request, reply) => {
         phone,
         address,
         value: parseFloat(value),
+        valuePaid: parseFloat(valuePaid) || 0,
+        monthlyPaid: parseFloat(monthlyPaid),
         loanInterest: parseFloat(loanInterest),
         installments: parseInt(installments),
         nextPaymentDate,
@@ -102,4 +106,55 @@ export const deleteClient = async (request, reply) => {
     console.error("Erro ao deletar cliente:", error);
     return reply.status(500).send({ error: "Erro interno do servidor" });
   }
+};
+
+export const getAnnualStats = async (request, reply) => {
+  const userId = request.user.id;
+  const currentYear = new Date().getFullYear();
+
+  const clients = await prisma.client.findMany({
+    where: {
+      userId,
+      // Filtramos clientes criados no ano atual para o gráfico anual
+      createdAt: {
+        gte: new Date(`${currentYear}-01-01`),
+        lte: new Date(`${currentYear}-12-31`),
+      },
+    },
+    select: {
+      value: true, // Saída (O quanto você tirou do bolso)
+      valuePaid: true, // Entrada (O quanto já voltou para você)
+      createdAt: true,
+    },
+  });
+
+  const months = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+
+  const stats = months.map((month, index) => {
+    // Agrupamos pelo mês de criação do registro/empréstimo
+    const monthData = clients.filter(
+      (c) => new Date(c.createdAt).getMonth() === index,
+    );
+
+    // Soma convertendo Decimal para Number para o Recharts não bugar
+    const exit = monthData.reduce((acc, c) => acc + Number(c.value), 0);
+    const entry = monthData.reduce((acc, c) => acc + Number(c.valuePaid), 0);
+
+    return { month, entry, exit };
+  });
+
+  return stats;
 };
