@@ -211,3 +211,51 @@ export const getMonthlySummary = async (request, reply) => {
     return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };
+
+export const getTotalLoanInterest = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // 1. Datas do Mês Atual
+    const startCurrent = new Date(currentYear, currentMonth, 1);
+    const endCurrent = new Date(currentYear, currentMonth + 1, 1);
+
+    // 2. Datas do Mês Passado
+    const startLast = new Date(currentYear, currentMonth - 1, 1);
+    const endLast = new Date(currentYear, currentMonth, 1);
+
+    // Busca Somas do Mês Atual
+    const currentStats = await prisma.client.aggregate({
+      where: { userId, createdAt: { gte: startCurrent, lt: endCurrent } },
+      _sum: { monthlyPaid: true },
+    });
+
+    // Busca Somas do Mês Passado
+    const lastStats = await prisma.client.aggregate({
+      where: { userId, createdAt: { gte: startLast, lt: endLast } },
+      _sum: { monthlyPaid: true },
+    });
+
+    const currentTotal = Number(currentStats._sum.monthlyPaid) || 0;
+    const lastTotal = Number(lastStats._sum.monthlyPaid) || 0;
+
+    // 3. Cálculo da Diferença Percentual
+    let diffPercentage = 0;
+    if (lastTotal > 0) {
+      diffPercentage = ((currentTotal - lastTotal) / lastTotal) * 100;
+    } else if (currentTotal > 0) {
+      diffPercentage = 100; // Se não teve nada mês passado, o lucro é 100%
+    }
+
+    return reply.send({
+      totalInterest: currentTotal,
+      diffPercentage: parseFloat(diffPercentage.toFixed(2)),
+    });
+  } catch (error) {
+    console.error(error);
+    return reply.status(500).send({ error: "Erro interno" });
+  }
+};
