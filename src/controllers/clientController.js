@@ -186,3 +186,28 @@ export const getClientsStatusStats = async (request, reply) => {
     return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };
+
+export const getMonthlySummary = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    return await prisma.client.aggregate({
+      where: {
+        userId,
+        createdAt: {
+          gte: new Date(currentYear, currentMonth, 1),
+          lt: new Date(currentYear, currentMonth + 1, 1),
+        },
+      },
+      _sum: {
+        value: true,
+        valuePaid: true,
+      },
+    });
+  } catch (error) {
+    console.error("Erro ao obter resumo mensal:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};

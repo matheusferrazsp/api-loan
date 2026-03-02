@@ -5,6 +5,7 @@ import {
   updateClient,
   getAnnualStats,
   getClientsStatusStats,
+  getMonthlySummary,
 } from "../controllers/clientController.js";
 import { authenticate } from "../middlewares/auth.js";
 
@@ -17,4 +18,5 @@ export async function clientRoutes(fastify) {
   fastify.put("/clients/:id", updateClient);
   fastify.get("/dashboard/annual-stats", getAnnualStats);
   fastify.get("/stats/status", getClientsStatusStats);
+  fastify.get("/dashboard/monthly-summary", getMonthlySummary);
 }
