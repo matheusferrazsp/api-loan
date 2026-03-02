@@ -52,7 +52,7 @@ export const getClients = async (request, reply) => {
 
     const clients = await prisma.client.findMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { name: "asc" },
     });
 
     console.log("Clientes no banco:", clients);
