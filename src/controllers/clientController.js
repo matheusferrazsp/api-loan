@@ -13,13 +13,17 @@ export const createClient = async (request, reply) => {
       valuePaid,
       loanInterest,
       installments,
+      loanDate,
+      installmentsPaid,
+      lastPaymentDate,
+      nextPaymentDate,
+      lateInstallments,
       observations,
     } = request.body;
 
     const userId = request.user.id;
 
-    const nextPaymentDate = new Date();
-    nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+    const baseDate = loanDate ? new Date(loanDate) : new Date();
 
     const client = await prisma.client.create({
       data: {
@@ -33,7 +37,11 @@ export const createClient = async (request, reply) => {
         monthlyPaid: parseFloat(monthlyPaid),
         loanInterest: parseFloat(loanInterest),
         installments: parseInt(installments),
-        nextPaymentDate,
+        lastPaymentDate: lastPaymentDate ? new Date(lastPaymentDate) : null,
+        loanDate: baseDate,
+        installmentsPaid: parseInt(installmentsPaid) || 0,
+        lateInstallments: parseInt(lateInstallments) || 0,
+        nextPaymentDate: nextPaymentDate,
         observations,
         userId,
       },
