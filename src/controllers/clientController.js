@@ -367,7 +367,6 @@ export const getTotalCirculating = async (request, reply) => {
       },
       _sum: {
         value: true,
-        valuePaid: true,
       },
     });
 
@@ -381,18 +380,13 @@ export const getTotalCirculating = async (request, reply) => {
       },
       _sum: {
         value: true,
-        valuePaid: true,
       },
     });
 
     // Cálculo: O que foi emprestado (-) o que já foi devolvido parcial/totalmente
-    const currentCirculating =
-      (Number(totalStats._sum.value) || 0) -
-      (Number(totalStats._sum.valuePaid) || 0);
+    const currentCirculating = Number(totalStats._sum.value) || 0;
 
-    const lastCirculating =
-      (Number(lastMonthStats._sum.value) || 0) -
-      (Number(lastMonthStats._sum.valuePaid) || 0);
+    const lastCirculating = Number(lastMonthStats._sum.value) || 0;
 
     let diffPercentage = 0;
     if (lastCirculating > 0) {
