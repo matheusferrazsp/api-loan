@@ -259,3 +259,155 @@ export const getTotalLoanInterest = async (request, reply) => {
     return reply.status(500).send({ error: "Erro interno" });
   }
 };
+
+export const getTotalOutflow = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Períodos de comparação
+    const startCurrent = new Date(currentYear, currentMonth, 1);
+    const endCurrent = new Date(currentYear, currentMonth + 1, 1);
+    const startLast = new Date(currentYear, currentMonth - 1, 1);
+    const endLast = new Date(currentYear, currentMonth, 1);
+
+    // Soma das saídas (capital emprestado)
+    const [currentStats, lastStats] = await Promise.all([
+      prisma.client.aggregate({
+        where: { userId, createdAt: { gte: startCurrent, lt: endCurrent } },
+        _sum: { value: true },
+      }),
+      prisma.client.aggregate({
+        where: { userId, createdAt: { gte: startLast, lt: endLast } },
+        _sum: { value: true },
+      }),
+    ]);
+
+    const currentTotal = Number(currentStats._sum.value) || 0;
+    const lastTotal = Number(lastStats._sum.value) || 0;
+
+    // Cálculo da porcentagem
+    let diffPercentage = 0;
+    if (lastTotal > 0) {
+      diffPercentage = ((currentTotal - lastTotal) / lastTotal) * 100;
+    } else if (currentTotal > 0) {
+      diffPercentage = 100;
+    }
+
+    return reply.send({
+      totalOutflow: currentTotal,
+      diffPercentage: parseFloat(diffPercentage.toFixed(2)),
+    });
+  } catch (error) {
+    console.error("Erro ao obter saídas:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
+
+export const getTotalReturned = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Datas para os filtros
+    const startCurrent = new Date(currentYear, currentMonth, 1);
+    const endCurrent = new Date(currentYear, currentMonth + 1, 1);
+    const startLast = new Date(currentYear, currentMonth - 1, 1);
+    const endLast = new Date(currentYear, currentMonth, 1);
+
+    // Executa as somas do que foi pago (valuePaid)
+    const [currentStats, lastStats] = await Promise.all([
+      prisma.client.aggregate({
+        where: { userId, createdAt: { gte: startCurrent, lt: endCurrent } },
+        _sum: { valuePaid: true },
+      }),
+      prisma.client.aggregate({
+        where: { userId, createdAt: { gte: startLast, lt: endLast } },
+        _sum: { valuePaid: true },
+      }),
+    ]);
+
+    const currentTotal = Number(currentStats._sum.valuePaid) || 0;
+    const lastTotal = Number(lastStats._sum.valuePaid) || 0;
+
+    // Cálculo da diferença percentual
+    let diffPercentage = 0;
+    if (lastTotal > 0) {
+      diffPercentage = ((currentTotal - lastTotal) / lastTotal) * 100;
+    } else if (currentTotal > 0) {
+      diffPercentage = 100;
+    }
+
+    return reply.send({
+      totalReturned: currentTotal,
+      diffPercentage: parseFloat(diffPercentage.toFixed(2)),
+    });
+  } catch (error) {
+    console.error("Erro ao obter total devolvido:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
+
+export const getTotalCirculating = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // 1. Soma apenas de clientes que AINDA NÃO QUITARAM (Circulando hoje)
+    const totalStats = await prisma.client.aggregate({
+      where: {
+        userId,
+        totalDebtPaid: false, // Filtro crucial: remove quem já quitou tudo
+      },
+      _sum: {
+        value: true,
+        valuePaid: true,
+      },
+    });
+
+    // 2. Para a comparação, pegamos o que circulava até o mês passado
+    const lastMonthLimit = new Date(currentYear, currentMonth, 1);
+    const lastMonthStats = await prisma.client.aggregate({
+      where: {
+        userId,
+        totalDebtPaid: false, // Mantemos o critério de dívida ativa
+        createdAt: { lt: lastMonthLimit },
+      },
+      _sum: {
+        value: true,
+        valuePaid: true,
+      },
+    });
+
+    // Cálculo: O que foi emprestado (-) o que já foi devolvido parcial/totalmente
+    const currentCirculating =
+      (Number(totalStats._sum.value) || 0) -
+      (Number(totalStats._sum.valuePaid) || 0);
+
+    const lastCirculating =
+      (Number(lastMonthStats._sum.value) || 0) -
+      (Number(lastMonthStats._sum.valuePaid) || 0);
+
+    let diffPercentage = 0;
+    if (lastCirculating > 0) {
+      diffPercentage =
+        ((currentCirculating - lastCirculating) / lastCirculating) * 100;
+    } else if (currentCirculating > 0) {
+      diffPercentage = 100;
+    }
+
+    return reply.send({
+      totalCirculating: currentCirculating,
+      diffPercentage: parseFloat(diffPercentage.toFixed(2)),
+    });
+  } catch (error) {
+    console.error("Erro ao obter total circulando:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};

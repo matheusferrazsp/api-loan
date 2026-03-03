@@ -7,6 +7,9 @@ import {
   getClientsStatusStats,
   getMonthlySummary,
   getTotalLoanInterest,
+  getTotalOutflow,
+  getTotalReturned,
+  getTotalCirculating,
 } from "../controllers/clientController.js";
 import { authenticate } from "../middlewares/auth.js";
 
@@ -21,4 +24,7 @@ export async function clientRoutes(fastify) {
   fastify.get("/stats/status", getClientsStatusStats);
   fastify.get("/dashboard/monthly-summary", getMonthlySummary);
   fastify.get("/dashboard/total-loan-interest", getTotalLoanInterest);
+  fastify.get("/dashboard/total-outflow", getTotalOutflow);
+  fastify.get("/dashboard/total-returned", getTotalReturned);
+  fastify.get("/dashboard/total-circulating", getTotalCirculating);
 }
