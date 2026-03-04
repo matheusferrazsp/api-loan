@@ -198,21 +198,36 @@ export const getClientsStatusStats = async (request, reply) => {
 export const getMonthlySummary = async (request, reply) => {
   try {
     const userId = request.user.id;
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+    const now = new Date();
 
-    return await prisma.client.aggregate({
+    // Define o intervalo do mês atual
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+    );
+
+    const summary = await prisma.client.aggregate({
       where: {
         userId,
-        createdAt: {
-          gte: new Date(currentYear, currentMonth, 1),
-          lt: new Date(currentYear, currentMonth + 1, 1),
+        monthlyFeePaid: true, // Condição 1: O checkbox deve estar marcado
+        lastPaymentDate: {
+          // Condição 2: A data deve ser deste mês
+          gte: firstDay,
+          lte: lastDay,
         },
       },
       _sum: {
-        value: true,
-        valuePaid: true,
+        lastPaymentAmount: true, // Soma o valor real que você digitou
       },
+    });
+
+    return reply.send({
+      totalReceived: Number(summary._sum.lastPaymentAmount) || 0,
     });
   } catch (error) {
     console.error("Erro ao obter resumo mensal:", error);

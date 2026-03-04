@@ -37,6 +37,7 @@ model Client {
   // Financeiro acumulado
   valuePaid          Decimal  @default(0) @db.Decimal(10, 2)
   monthlyPaid        Decimal  @default(0) @db.Decimal(10, 2)
+  lastPaymentAmount  Decimal  @default(0) @db.Decimal(10, 2)
   
   // Datas
   loanDate           DateTime @default(now())

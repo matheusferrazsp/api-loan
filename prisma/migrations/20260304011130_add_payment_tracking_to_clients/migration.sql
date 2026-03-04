@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Client" ADD COLUMN     "lastPaymentAmount" DOUBLE PRECISION NOT NULL DEFAULT 0;
