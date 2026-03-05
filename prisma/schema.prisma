@@ -45,7 +45,7 @@ model Client {
   lastPaymentDate    DateTime?
   
   // Status
-  monthlyFeePaid     Boolean  @default(false)
+  monthlyFeePaid     Boolean  @default(true)
   totalDebtPaid      Boolean  @default(false)
   observations       String?  @db.Text
 
