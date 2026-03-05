@@ -199,8 +199,6 @@ export const getMonthlySummary = async (request, reply) => {
   try {
     const userId = request.user.id;
     const now = new Date();
-
-    // Define o intervalo do mês atual
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(
       now.getFullYear(),
@@ -211,23 +209,39 @@ export const getMonthlySummary = async (request, reply) => {
       59,
     );
 
-    const summary = await prisma.client.aggregate({
+    // 1. Cálculo das ENTRADAS (Dinheiro que entrou no bolso)
+    const entries = await prisma.client.aggregate({
       where: {
         userId,
-        monthlyFeePaid: true, // Condição 1: O checkbox deve estar marcado
+        monthlyFeePaid: true,
         lastPaymentDate: {
-          // Condição 2: A data deve ser deste mês
           gte: firstDay,
           lte: lastDay,
         },
       },
       _sum: {
-        lastPaymentAmount: true, // Soma o valor real que você digitou
+        lastPaymentAmount: true,
+      },
+    });
+
+    // 2. Cálculo das SAÍDAS (Total de novos empréstimos criados no mês)
+    const outflows = await prisma.client.aggregate({
+      where: {
+        userId,
+        loanDate: {
+          // Filtra pela data em que o empréstimo foi fechado
+          gte: firstDay,
+          lte: lastDay,
+        },
+      },
+      _sum: {
+        value: true, // Soma o valor bruto emprestado
       },
     });
 
     return reply.send({
-      totalReceived: Number(summary._sum.lastPaymentAmount) || 0,
+      totalIn: Number(entries._sum.lastPaymentAmount) || 0,
+      totalOut: Number(outflows._sum.value) || 0,
     });
   } catch (error) {
     console.error("Erro ao obter resumo mensal:", error);
