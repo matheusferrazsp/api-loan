@@ -75,11 +75,13 @@ export const getClients = async (request, reply) => {
     const clientsWithAutoStatus = clients.map((client) => {
       if (!client.nextPaymentDate) return client;
 
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const dueDate = new Date(client.nextPaymentDate);
       dueDate.setHours(0, 0, 0, 0);
 
       // Se a data de vencimento é menor que hoje
-      const isOverdue = dueDate < today;
+      const isOverdue = today.getTime() > dueDate.getTime();
 
       let updatedLateInstallments = client.lateInstallments;
       let updatedMonthlyFeePaid = client.monthlyFeePaid;
@@ -104,6 +106,8 @@ export const getClients = async (request, reply) => {
           client.lateInstallments,
           actualLateCount,
         );
+      } else {
+        updatedMonthlyFeePaid = client.monthlyFeePaid;
       }
 
       return {
