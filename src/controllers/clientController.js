@@ -2,55 +2,61 @@ import { prisma } from "../lib/prisma.js";
 
 export const createClient = async (request, reply) => {
   try {
-    const {
-      name,
-      email,
-      cpf,
-      phone,
-      address,
-      value,
-      monthlyPaid,
-      valuePaid,
-      loanInterest,
-      installments,
-      loanDate,
-      installmentsPaid,
-      lastPaymentDate,
-      nextPaymentDate,
-      lateInstallments,
-      observations,
-    } = request.body;
-
+    const data = request.body;
     const userId = request.user.id;
 
-    const baseDate = loanDate ? new Date(loanDate) : new Date();
+    // Função interna para limpar máscara (ex: "1.250,50" -> 1250.50)
+    const parseMoney = (val) => {
+      if (!val) return 0;
+      if (typeof val === "number") return val;
+      // Remove todos os pontos e troca a vírgula por ponto
+      const clean = val.toString().replace(/\./g, "").replace(",", ".");
+      return parseFloat(clean) || 0;
+    };
+
+    const baseDate = data.loanDate ? new Date(data.loanDate) : new Date();
 
     const client = await prisma.client.create({
       data: {
-        name,
-        email,
-        cpf,
-        phone,
-        address,
-        value: parseFloat(value),
-        valuePaid: parseFloat(valuePaid) || 0,
-        monthlyPaid: parseFloat(monthlyPaid),
-        loanInterest: parseFloat(loanInterest),
-        installments: parseInt(installments),
-        lastPaymentDate: lastPaymentDate ? new Date(lastPaymentDate) : null,
+        name: data.name,
+        email: data.email,
+        cpf: data.cpf,
+        phone: data.phone,
+        address: data.address,
+        // Limpando os valores financeiros
+        value: parseMoney(data.value),
+        valuePaid: parseMoney(data.valuePaid),
+        monthlyPaid: parseMoney(data.monthlyPaid),
+        loanInterest: parseFloat(data.loanInterest) || 0, // Juros costuma ser número simples
+        installments: parseInt(data.installments) || 0,
+        installmentsPaid: parseInt(data.installmentsPaid) || 0,
+        lateInstallments: parseInt(data.lateInstallments) || 0,
+        lastPaymentAmount: parseMoney(data.lastPaymentAmount),
+
+        // Tratamento de Datas
         loanDate: baseDate,
-        installmentsPaid: parseInt(installmentsPaid) || 0,
-        lateInstallments: parseInt(lateInstallments) || 0,
-        nextPaymentDate: nextPaymentDate,
-        observations,
+        lastPaymentDate: data.lastPaymentDate
+          ? new Date(data.lastPaymentDate)
+          : null,
+        nextPaymentDate: data.nextPaymentDate
+          ? new Date(data.nextPaymentDate)
+          : null,
+
+        observations: data.observations,
         userId,
+
+        // Convertendo status de string para boolean (caso venha como string do form)
+        monthlyFeePaid: String(data.monthlyFeePaid) === "true",
+        totalDebtPaid: String(data.totalDebtPaid) === "true",
       },
     });
 
     return reply.status(201).send(client);
   } catch (error) {
     console.error("Erro ao cadastrar cliente:", error);
-    return reply.status(500).send({ error: "Erro interno do servidor" });
+    return reply
+      .status(500)
+      .send({ error: "Erro interno do servidor", details: error.message });
   }
 };
 
@@ -83,7 +89,7 @@ export const getClients = async (request, reply) => {
         updatedMonthlyFeePaid = false;
 
         // 2. Calculamos a diferença de meses entre o vencimento e hoje
-        // Ex: Venceu em Janeiro, hoje é Março = 2 meses de atraso
+
         const yearDiff = today.getFullYear() - dueDate.getFullYear();
         const monthDiff = today.getMonth() - dueDate.getMonth();
         const totalMonthsOverdue = yearDiff * 12 + monthDiff;
@@ -118,11 +124,38 @@ export async function updateClient(request, reply) {
   const { id } = request.params;
   const data = request.body;
 
+  const parseMoney = (val) => {
+    if (!val) return 0;
+    if (typeof val === "number") return val;
+    const clean = val.toString().replace(/\./g, "").replace(",", ".");
+    return parseFloat(clean) || 0;
+  };
+
   try {
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
         ...data,
+        // Garantindo que campos financeiros sejam processados corretamente
+        value: data.value ? parseMoney(data.value) : undefined,
+        valuePaid: data.valuePaid ? parseMoney(data.valuePaid) : undefined,
+        monthlyPaid: data.monthlyPaid
+          ? parseMoney(data.monthlyPaid)
+          : undefined,
+        lastPaymentAmount: data.lastPaymentAmount
+          ? parseMoney(data.lastPaymentAmount)
+          : undefined,
+
+        // Conversão de booleans
+        monthlyFeePaid:
+          data.monthlyFeePaid !== undefined
+            ? String(data.monthlyFeePaid) === "true"
+            : undefined,
+        totalDebtPaid:
+          data.totalDebtPaid !== undefined
+            ? String(data.totalDebtPaid) === "true"
+            : undefined,
+
         userId: request.user.id,
       },
     });
