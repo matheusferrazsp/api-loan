@@ -57,15 +57,57 @@ export const createClient = async (request, reply) => {
 export const getClients = async (request, reply) => {
   try {
     const userId = request.user.id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Zera as horas para comparação justa de datas
 
     const clients = await prisma.client.findMany({
       where: { userId },
       orderBy: { name: "asc" },
     });
 
-    console.log("Clientes no banco:", clients);
+    // Mapeamos os clientes para injetar a lógica de atraso automática
+    const clientsWithAutoStatus = clients.map((client) => {
+      if (!client.nextPaymentDate) return client;
 
-    return reply.send(clients);
+      const dueDate = new Date(client.nextPaymentDate);
+      dueDate.setHours(0, 0, 0, 0);
+
+      // Se a data de vencimento é menor que hoje
+      const isOverdue = dueDate < today;
+
+      let updatedLateInstallments = client.lateInstallments;
+      let updatedMonthlyFeePaid = client.monthlyFeePaid;
+
+      if (isOverdue) {
+        // 1. Forçamos o status visual para "Atrasado" (false)
+        updatedMonthlyFeePaid = false;
+
+        // 2. Calculamos a diferença de meses entre o vencimento e hoje
+        // Ex: Venceu em Janeiro, hoje é Março = 2 meses de atraso
+        const yearDiff = today.getFullYear() - dueDate.getFullYear();
+        const monthDiff = today.getMonth() - dueDate.getMonth();
+        const totalMonthsOverdue = yearDiff * 12 + monthDiff;
+
+        // Se a diferença for 0 (venceu ontem, por exemplo), garantimos pelo menos 1 parcela
+        const actualLateCount =
+          totalMonthsOverdue <= 0 ? 1 : totalMonthsOverdue;
+
+        // Atualizamos o contador apenas se o cálculo for maior que o registrado
+        // Isso evita que o número diminua caso você tenha alterado manualmente
+        updatedLateInstallments = Math.max(
+          client.lateInstallments,
+          actualLateCount,
+        );
+      }
+
+      return {
+        ...client,
+        monthlyFeePaid: updatedMonthlyFeePaid,
+        lateInstallments: updatedLateInstallments,
+      };
+    });
+
+    return reply.send(clientsWithAutoStatus);
   } catch (error) {
     console.error("Erro ao listar clientes:", error);
     return reply.status(500).send({ error: "Erro interno do servidor" });
@@ -209,7 +251,6 @@ export const getMonthlySummary = async (request, reply) => {
       59,
     );
 
-    // 1. Cálculo das ENTRADAS (Dinheiro que entrou no bolso)
     const entries = await prisma.client.aggregate({
       where: {
         userId,
@@ -224,18 +265,16 @@ export const getMonthlySummary = async (request, reply) => {
       },
     });
 
-    // 2. Cálculo das SAÍDAS (Total de novos empréstimos criados no mês)
     const outflows = await prisma.client.aggregate({
       where: {
         userId,
         loanDate: {
-          // Filtra pela data em que o empréstimo foi fechado
           gte: firstDay,
           lte: lastDay,
         },
       },
       _sum: {
-        value: true, // Soma o valor bruto emprestado
+        value: true,
       },
     });
 
