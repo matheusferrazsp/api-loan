@@ -64,62 +64,66 @@ export const getClients = async (request, reply) => {
   try {
     const userId = request.user.id;
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Zera as horas para comparação justa de datas
+    today.setHours(0, 0, 0, 0);
 
     const clients = await prisma.client.findMany({
       where: { userId },
       orderBy: { name: "asc" },
     });
 
-    // Mapeamos os clientes para injetar a lógica de atraso automática
-    const clientsWithAutoStatus = clients.map((client) => {
-      if (!client.nextPaymentDate) return client;
+    const clientsWithAutoStatus = await Promise.all(
+      clients.map(async (client) => {
+        if (!client.nextPaymentDate) return client;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const dueDate = new Date(client.nextPaymentDate);
-      dueDate.setHours(0, 0, 0, 0);
+        const dueDate = new Date(client.nextPaymentDate);
+        dueDate.setHours(0, 0, 0, 0);
 
-      // Se a data de vencimento é menor que hoje
-      const isOverdue = today.getTime() > dueDate.getTime();
+        const isOverdue = today.getTime() > dueDate.getTime();
 
-      let updatedLateInstallments = client.lateInstallments;
-      let updatedMonthlyFeePaid = client.monthlyFeePaid;
+        let updatedLateInstallments = client.lateInstallments;
+        let updatedMonthlyFeePaid = client.monthlyFeePaid;
 
-      if (isOverdue) {
-        // 1. Forçamos o status visual para "Atrasado" (false)
-        updatedMonthlyFeePaid = false;
+        if (isOverdue) {
+          updatedMonthlyFeePaid = false;
 
-        // 2. Calculamos a diferença de meses entre o vencimento e hoje
+          const yearDiff = today.getFullYear() - dueDate.getFullYear();
+          const monthDiff = today.getMonth() - dueDate.getMonth();
+          const totalMonthsOverdue = yearDiff * 12 + monthDiff;
 
-        const yearDiff = today.getFullYear() - dueDate.getFullYear();
-        const monthDiff = today.getMonth() - dueDate.getMonth();
-        const totalMonthsOverdue = yearDiff * 12 + monthDiff;
+          const actualLateCount =
+            totalMonthsOverdue <= 0 ? 1 : totalMonthsOverdue;
+          updatedLateInstallments = Math.max(
+            client.lateInstallments,
+            actualLateCount,
+          );
 
-        // Se a diferença for 0 (venceu ontem, por exemplo), garantimos pelo menos 1 parcela
-        const actualLateCount =
-          totalMonthsOverdue <= 0 ? 1 : totalMonthsOverdue;
+          // --- ATUALIZAÇÃO SILENCIOSA NO BANCO ---
+          // Só salva se o que está no banco for DIFERENTE do novo cálculo
+          if (
+            client.monthlyFeePaid !== updatedMonthlyFeePaid ||
+            client.lateInstallments !== updatedLateInstallments
+          ) {
+            await prisma.client.update({
+              where: { id: client.id },
+              data: {
+                monthlyFeePaid: updatedMonthlyFeePaid,
+                lateInstallments: updatedLateInstallments,
+              },
+            });
+          }
+        }
 
-        // Atualizamos o contador apenas se o cálculo for maior que o registrado
-        // Isso evita que o número diminua caso você tenha alterado manualmente
-        updatedLateInstallments = Math.max(
-          client.lateInstallments,
-          actualLateCount,
-        );
-      } else {
-        updatedMonthlyFeePaid = client.monthlyFeePaid;
-      }
-
-      return {
-        ...client,
-        monthlyFeePaid: updatedMonthlyFeePaid,
-        lateInstallments: updatedLateInstallments,
-      };
-    });
+        return {
+          ...client,
+          monthlyFeePaid: updatedMonthlyFeePaid,
+          lateInstallments: updatedLateInstallments,
+        };
+      }),
+    );
 
     return reply.send(clientsWithAutoStatus);
   } catch (error) {
-    console.error("Erro ao listar clientes:", error);
+    console.error("Erro ao listar e sincronizar clientes:", error);
     return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };
