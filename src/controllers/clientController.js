@@ -55,6 +55,7 @@ export const createClient = async (request, reply) => {
       },
     });
 
+    request.server.io.emit("clientesAtualizados");
     return reply.status(201).send(client);
   } catch (error) {
     console.error("Erro ao cadastrar cliente:", error);
@@ -214,6 +215,9 @@ export async function updateClient(request, reply) {
             : undefined,
       },
     });
+    console.log("🔊 Disparando evento WebSocket para os clientes...");
+
+    request.server.io.emit("clientesAtualizados");
 
     return reply.send(updatedClient);
   } catch (error) {
@@ -238,7 +242,7 @@ export const deleteClient = async (request, reply) => {
     await prisma.client.delete({
       where: { id },
     });
-
+    request.server.io.emit("clientesAtualizados");
     return reply.status(204).send();
   } catch (error) {
     console.error("Erro ao deletar cliente:", error);
