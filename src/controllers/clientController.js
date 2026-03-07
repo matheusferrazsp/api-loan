@@ -1,20 +1,31 @@
 import { prisma } from "../lib/prisma.js";
 
+// Helper para padronizar a limpeza de dinheiro em todo o backend
+const parseMoney = (val) => {
+  if (!val) return 0;
+  if (typeof val === "number") return val;
+  const clean = val.toString().replace(/\./g, "").replace(",", ".");
+  return parseFloat(clean) || 0;
+};
+
+// HELPER DE DATAS: O Escudo do Fuso Horário
+const parseDateSafe = (val) => {
+  if (!val || val === "") return null;
+  // Se a data chegar no formato padrão "YYYY-MM-DD" do input date,
+  // forçamos para meio-dia UTC. Isso impede a alteração de dia no Brasil (-3h).
+  if (typeof val === "string" && val.length === 10) {
+    return new Date(`${val}T12:00:00Z`);
+  }
+  return new Date(val);
+};
+
 export const createClient = async (request, reply) => {
   try {
     const data = request.body;
     const userId = request.user.id;
 
-    // Função interna para limpar máscara (ex: "1.250,50" -> 1250.50)
-    const parseMoney = (val) => {
-      if (!val) return 0;
-      if (typeof val === "number") return val;
-      // Remove todos os pontos e troca a vírgula por ponto
-      const clean = val.toString().replace(/\./g, "").replace(",", ".");
-      return parseFloat(clean) || 0;
-    };
-
-    const baseDate = data.loanDate ? new Date(data.loanDate) : new Date();
+    // Usando o novo parseDateSafe
+    const baseDate = data.loanDate ? parseDateSafe(data.loanDate) : new Date();
 
     const client = await prisma.client.create({
       data: {
@@ -23,29 +34,22 @@ export const createClient = async (request, reply) => {
         cpf: data.cpf,
         phone: data.phone,
         address: data.address,
-        // Limpando os valores financeiros
         value: parseMoney(data.value),
         valuePaid: parseMoney(data.valuePaid),
         monthlyPaid: parseMoney(data.monthlyPaid),
-        loanInterest: parseFloat(data.loanInterest) || 0, // Juros costuma ser número simples
+        loanInterest: parseFloat(data.loanInterest) || 0,
         installments: parseInt(data.installments) || 0,
         installmentsPaid: parseInt(data.installmentsPaid) || 0,
         lateInstallments: parseInt(data.lateInstallments) || 0,
         lastPaymentAmount: parseMoney(data.lastPaymentAmount),
 
-        // Tratamento de Datas
+        // Datas blindadas no Create
         loanDate: baseDate,
-        lastPaymentDate: data.lastPaymentDate
-          ? new Date(data.lastPaymentDate)
-          : null,
-        nextPaymentDate: data.nextPaymentDate
-          ? new Date(data.nextPaymentDate)
-          : null,
+        lastPaymentDate: parseDateSafe(data.lastPaymentDate),
+        nextPaymentDate: parseDateSafe(data.nextPaymentDate),
 
         observations: data.observations,
         userId,
-
-        // Convertendo status de string para boolean (caso venha como string do form)
         monthlyFeePaid: String(data.monthlyFeePaid) === "true",
         totalDebtPaid: String(data.totalDebtPaid) === "true",
       },
@@ -78,6 +82,7 @@ export const getClients = async (request, reply) => {
         const dueDate = new Date(client.nextPaymentDate);
         dueDate.setHours(0, 0, 0, 0);
 
+        // Só considera atrasado se HOJE for MAIOR que o VENCIMENTO
         const isOverdue = today.getTime() > dueDate.getTime();
 
         let updatedLateInstallments = client.lateInstallments;
@@ -97,8 +102,6 @@ export const getClients = async (request, reply) => {
             actualLateCount,
           );
 
-          // --- ATUALIZAÇÃO SILENCIOSA NO BANCO ---
-          // Só salva se o que está no banco for DIFERENTE do novo cálculo
           if (
             client.monthlyFeePaid !== updatedMonthlyFeePaid ||
             client.lateInstallments !== updatedLateInstallments
@@ -117,61 +120,88 @@ export const getClients = async (request, reply) => {
           ...client,
           monthlyFeePaid: updatedMonthlyFeePaid,
           lateInstallments: updatedLateInstallments,
+          isDueToday: today.getTime() === dueDate.getTime(), // Flag útil para o filtro
         };
       }),
     );
 
     return reply.send(clientsWithAutoStatus);
   } catch (error) {
-    console.error("Erro ao listar e sincronizar clientes:", error);
-    return reply.status(500).send({ error: "Erro interno do servidor" });
+    console.error("Erro ao listar e sincronizar:", error);
+    return reply.status(500).send({ error: "Erro interno" });
   }
 };
 
 export async function updateClient(request, reply) {
   const { id } = request.params;
-  const data = request.body;
+  const body = request.body;
 
-  const parseMoney = (val) => {
-    if (!val) return 0;
-    if (typeof val === "number") return val;
-    const clean = val.toString().replace(/\./g, "").replace(",", ".");
-    return parseFloat(clean) || 0;
-  };
+  // 1. Removemos campos intrusos que causam erro no Prisma
+  const {
+    userId,
+    createdAt,
+    updatedAt,
+    isDueToday,
+    confirmPayment,
+    ...restOfData
+  } = body;
 
   try {
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
-        ...data,
-        // Garantindo que campos financeiros sejam processados corretamente
-        value: data.value ? parseMoney(data.value) : undefined,
-        valuePaid: data.valuePaid ? parseMoney(data.valuePaid) : undefined,
-        monthlyPaid: data.monthlyPaid
-          ? parseMoney(data.monthlyPaid)
-          : undefined,
-        lastPaymentAmount: data.lastPaymentAmount
-          ? parseMoney(data.lastPaymentAmount)
-          : undefined,
+        ...restOfData,
 
-        // Conversão de booleans
+        // Usando o parseDateSafe no Update
+        // Se for undefined, o Prisma ignora e não mexe na data
+        loanDate:
+          restOfData.loanDate !== undefined
+            ? parseDateSafe(restOfData.loanDate)
+            : undefined,
+        nextPaymentDate:
+          restOfData.nextPaymentDate !== undefined
+            ? parseDateSafe(restOfData.nextPaymentDate)
+            : undefined,
+        lastPaymentDate:
+          restOfData.lastPaymentDate !== undefined
+            ? parseDateSafe(restOfData.lastPaymentDate)
+            : undefined,
+
+        // Garantimos que os números e booleans sejam convertidos com segurança
+        value:
+          restOfData.value !== undefined
+            ? parseMoney(restOfData.value)
+            : undefined,
+        valuePaid:
+          restOfData.valuePaid !== undefined
+            ? parseMoney(restOfData.valuePaid)
+            : undefined,
+        monthlyPaid:
+          restOfData.monthlyPaid !== undefined
+            ? parseMoney(restOfData.monthlyPaid)
+            : undefined,
+        lastPaymentAmount:
+          restOfData.lastPaymentAmount !== undefined
+            ? parseMoney(restOfData.lastPaymentAmount)
+            : undefined,
+
         monthlyFeePaid:
-          data.monthlyFeePaid !== undefined
-            ? String(data.monthlyFeePaid) === "true"
+          restOfData.monthlyFeePaid !== undefined
+            ? String(restOfData.monthlyFeePaid) === "true"
             : undefined,
         totalDebtPaid:
-          data.totalDebtPaid !== undefined
-            ? String(data.totalDebtPaid) === "true"
+          restOfData.totalDebtPaid !== undefined
+            ? String(restOfData.totalDebtPaid) === "true"
             : undefined,
-
-        userId: request.user.id,
       },
     });
 
     return reply.send(updatedClient);
   } catch (error) {
-    console.error(error);
-    return reply.status(500).send({ error: "Erro ao atualizar cliente" });
+    console.error("Erro ao atualizar data no Prisma:", error);
+    return reply
+      .status(500)
+      .send({ error: "Erro ao atualizar campos de data" });
   }
 }
 
@@ -254,27 +284,22 @@ export const getClientsStatusStats = async (request, reply) => {
   try {
     const userId = request.user.id;
 
+    // Contamos quem tem pelo menos 1 parcela atrasada
     const lateCount = await prisma.client.count({
-      where: {
-        userId,
-        lateInstallments: { gt: 0 },
-      },
+      where: { userId, lateInstallments: { gt: 0 } },
     });
 
+    // Contamos quem está com 0 parcelas atrasadas
     const onTimeCount = await prisma.client.count({
-      where: {
-        userId,
-        lateInstallments: 0,
-      },
+      where: { userId, lateInstallments: 0 },
     });
 
     return reply.send([
-      { status: "pendente", value: lateCount, fill: "var(--color-chart-5)" },
+      { status: "atrasado", value: lateCount, fill: "var(--color-chart-5)" },
       { status: "em-dia", value: onTimeCount, fill: "var(--color-chart-2)" },
     ]);
   } catch (error) {
-    console.error("Erro ao obter estatísticas de status dos clientes:", error);
-    return reply.status(500).send({ error: "Erro interno do servidor" });
+    return reply.status(500).send({ error: "Erro nas estatísticas" });
   }
 };
 
