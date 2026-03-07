@@ -136,7 +136,7 @@ export async function updateClient(request, reply) {
   const { id } = request.params;
   const body = request.body;
 
-  // 1. Removemos campos intrusos que causam erro no Prisma
+  // Removemos campos intrusos que causam erro no Prisma
   const {
     userId,
     createdAt,
@@ -147,27 +147,45 @@ export async function updateClient(request, reply) {
   } = body;
 
   try {
+    const safeLoanDate = parseDateSafe(restOfData.loanDate);
+    const safeNextDate =
+      restOfData.nextPaymentDate !== undefined
+        ? parseDateSafe(restOfData.nextPaymentDate)
+        : undefined;
+    const safeLastDate =
+      restOfData.lastPaymentDate !== undefined
+        ? parseDateSafe(restOfData.lastPaymentDate)
+        : undefined;
+
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
         ...restOfData,
 
-        // Usando o parseDateSafe no Update
-        // Se for undefined, o Prisma ignora e não mexe na data
-        loanDate:
-          restOfData.loanDate !== undefined
-            ? parseDateSafe(restOfData.loanDate)
+        // --- A CORREÇÃO ESTÁ AQUI: CONVERSÃO DE STRINGS PARA NÚMEROS ---
+        loanInterest:
+          restOfData.loanInterest !== undefined
+            ? parseFloat(restOfData.loanInterest) || 0
             : undefined,
-        nextPaymentDate:
-          restOfData.nextPaymentDate !== undefined
-            ? parseDateSafe(restOfData.nextPaymentDate)
+        installments:
+          restOfData.installments !== undefined
+            ? parseInt(restOfData.installments) || 0
             : undefined,
-        lastPaymentDate:
-          restOfData.lastPaymentDate !== undefined
-            ? parseDateSafe(restOfData.lastPaymentDate)
+        installmentsPaid:
+          restOfData.installmentsPaid !== undefined
+            ? parseInt(restOfData.installmentsPaid) || 0
+            : undefined,
+        lateInstallments:
+          restOfData.lateInstallments !== undefined
+            ? parseInt(restOfData.lateInstallments) || 0
             : undefined,
 
-        // Garantimos que os números e booleans sejam convertidos com segurança
+        // Datas
+        loanDate: safeLoanDate !== null ? safeLoanDate : undefined,
+        nextPaymentDate: safeNextDate,
+        lastPaymentDate: safeLastDate,
+
+        // Dinheiro (O parseMoney já converte para Number por baixo dos panos)
         value:
           restOfData.value !== undefined
             ? parseMoney(restOfData.value)
@@ -185,6 +203,7 @@ export async function updateClient(request, reply) {
             ? parseMoney(restOfData.lastPaymentAmount)
             : undefined,
 
+        // Booleans
         monthlyFeePaid:
           restOfData.monthlyFeePaid !== undefined
             ? String(restOfData.monthlyFeePaid) === "true"
@@ -198,10 +217,8 @@ export async function updateClient(request, reply) {
 
     return reply.send(updatedClient);
   } catch (error) {
-    console.error("Erro ao atualizar data no Prisma:", error);
-    return reply
-      .status(500)
-      .send({ error: "Erro ao atualizar campos de data" });
+    console.error("Erro ao atualizar dados no Prisma:", error);
+    return reply.status(500).send({ error: "Erro ao atualizar cliente" });
   }
 }
 
