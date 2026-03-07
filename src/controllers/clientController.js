@@ -305,14 +305,22 @@ export const getClientsStatusStats = async (request, reply) => {
   try {
     const userId = request.user.id;
 
-    // Contamos quem tem pelo menos 1 parcela atrasada
+    // Ativos atrasados: dívida pendente + parcelas atrasadas
     const lateCount = await prisma.client.count({
-      where: { userId, lateInstallments: { gt: 0 } },
+      where: {
+        userId,
+        totalDebtPaid: false,
+        lateInstallments: { gt: 0 },
+      },
     });
 
-    // Contamos quem está com 0 parcelas atrasadas
+    // Ativos em dia: dívida pendente + sem parcelas atrasadas
     const onTimeCount = await prisma.client.count({
-      where: { userId, lateInstallments: 0 },
+      where: {
+        userId,
+        totalDebtPaid: false,
+        lateInstallments: 0,
+      },
     });
 
     return reply.send([
@@ -341,7 +349,6 @@ export const getMonthlySummary = async (request, reply) => {
     const entries = await prisma.client.aggregate({
       where: {
         userId,
-        monthlyFeePaid: true,
         lastPaymentDate: {
           gte: firstDay,
           lte: lastDay,
@@ -392,13 +399,21 @@ export const getTotalLoanInterest = async (request, reply) => {
 
     // Busca Somas do Mês Atual
     const currentStats = await prisma.client.aggregate({
-      where: { userId, createdAt: { gte: startCurrent, lt: endCurrent } },
+      where: {
+        userId,
+        totalDebtPaid: false,
+        createdAt: { gte: startCurrent, lt: endCurrent },
+      },
       _sum: { monthlyPaid: true },
     });
 
     // Busca Somas do Mês Passado
     const lastStats = await prisma.client.aggregate({
-      where: { userId, createdAt: { gte: startLast, lt: endLast } },
+      where: {
+        userId,
+        totalDebtPaid: false,
+        createdAt: { gte: startLast, lt: endLast },
+      },
       _sum: { monthlyPaid: true },
     });
 
