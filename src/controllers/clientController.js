@@ -158,63 +158,94 @@ export async function updateClient(request, reply) {
         ? parseDateSafe(restOfData.lastPaymentDate)
         : undefined;
 
-    const updatedClient = await prisma.client.update({
-      where: { id },
-      data: {
-        ...restOfData,
+    const clientUpdateData = {
+      ...restOfData,
 
-        // --- A CORREÇÃO ESTÁ AQUI: CONVERSÃO DE STRINGS PARA NÚMEROS ---
-        loanInterest:
-          restOfData.loanInterest !== undefined
-            ? parseFloat(restOfData.loanInterest) || 0
-            : undefined,
-        installments:
-          restOfData.installments !== undefined
-            ? parseInt(restOfData.installments) || 0
-            : undefined,
-        installmentsPaid:
-          restOfData.installmentsPaid !== undefined
-            ? parseInt(restOfData.installmentsPaid) || 0
-            : undefined,
-        lateInstallments:
-          restOfData.lateInstallments !== undefined
-            ? parseInt(restOfData.lateInstallments) || 0
-            : undefined,
+      loanInterest:
+        restOfData.loanInterest !== undefined
+          ? parseFloat(restOfData.loanInterest) || 0
+          : undefined,
+      installments:
+        restOfData.installments !== undefined
+          ? parseInt(restOfData.installments) || 0
+          : undefined,
+      installmentsPaid:
+        restOfData.installmentsPaid !== undefined
+          ? parseInt(restOfData.installmentsPaid) || 0
+          : undefined,
+      lateInstallments:
+        restOfData.lateInstallments !== undefined
+          ? parseInt(restOfData.lateInstallments) || 0
+          : undefined,
 
-        // Datas
-        loanDate: safeLoanDate !== null ? safeLoanDate : undefined,
-        nextPaymentDate: safeNextDate,
-        lastPaymentDate: safeLastDate,
+      // Datas
+      loanDate: safeLoanDate !== null ? safeLoanDate : undefined,
+      nextPaymentDate: safeNextDate,
+      lastPaymentDate: safeLastDate,
 
-        // Dinheiro (O parseMoney já converte para Number por baixo dos panos)
-        value:
-          restOfData.value !== undefined
-            ? parseMoney(restOfData.value)
-            : undefined,
-        valuePaid:
-          restOfData.valuePaid !== undefined
-            ? parseMoney(restOfData.valuePaid)
-            : undefined,
-        monthlyPaid:
-          restOfData.monthlyPaid !== undefined
-            ? parseMoney(restOfData.monthlyPaid)
-            : undefined,
-        lastPaymentAmount:
-          restOfData.lastPaymentAmount !== undefined
-            ? parseMoney(restOfData.lastPaymentAmount)
-            : undefined,
+      // Dinheiro
+      value:
+        restOfData.value !== undefined
+          ? parseMoney(restOfData.value)
+          : undefined,
+      valuePaid:
+        restOfData.valuePaid !== undefined
+          ? parseMoney(restOfData.valuePaid)
+          : undefined,
+      monthlyPaid:
+        restOfData.monthlyPaid !== undefined
+          ? parseMoney(restOfData.monthlyPaid)
+          : undefined,
+      lastPaymentAmount:
+        restOfData.lastPaymentAmount !== undefined
+          ? parseMoney(restOfData.lastPaymentAmount)
+          : undefined,
 
-        // Booleans
-        monthlyFeePaid:
-          restOfData.monthlyFeePaid !== undefined
-            ? String(restOfData.monthlyFeePaid) === "true"
-            : undefined,
-        totalDebtPaid:
-          restOfData.totalDebtPaid !== undefined
-            ? String(restOfData.totalDebtPaid) === "true"
-            : undefined,
-      },
-    });
+      // Booleans
+      monthlyFeePaid:
+        restOfData.monthlyFeePaid !== undefined
+          ? String(restOfData.monthlyFeePaid) === "true"
+          : undefined,
+      totalDebtPaid:
+        restOfData.totalDebtPaid !== undefined
+          ? String(restOfData.totalDebtPaid) === "true"
+          : undefined,
+    };
+
+    // Se confirmPayment=true, registra o pagamento na tabela Payment atomicamente
+    const shouldRegisterPayment =
+      String(confirmPayment) === "true" &&
+      restOfData.lastPaymentAmount &&
+      parseMoney(restOfData.lastPaymentAmount) > 0 &&
+      restOfData.lastPaymentDate;
+
+    let updatedClient;
+
+    if (shouldRegisterPayment) {
+      const paymentAmount = parseMoney(restOfData.lastPaymentAmount);
+      const paymentDate = safeLastDate;
+
+      [, updatedClient] = await prisma.$transaction([
+        prisma.payment.create({
+          data: {
+            amount: paymentAmount,
+            date: paymentDate,
+            note: restOfData.observations || null,
+            clientId: id,
+          },
+        }),
+        prisma.client.update({
+          where: { id },
+          data: clientUpdateData,
+        }),
+      ]);
+    } else {
+      updatedClient = await prisma.client.update({
+        where: { id },
+        data: clientUpdateData,
+      });
+    }
+
     console.log("🔊 Disparando evento WebSocket para os clientes...");
 
     request.server.io.emit("clientesAtualizados");
