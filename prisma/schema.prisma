@@ -53,6 +53,27 @@ model Client {
   userId             Int
   user               User     @relation(fields: [userId], references: [id])
 
+  // Relacionamento: Quem pagou?
+  payments           Payment[] 
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  @@index([userId]) 
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  amount    Decimal  @db.Decimal(10, 2)
+  date      DateTime
+  note      String?
+
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([date])
+  @@index([clientId, date])
 }

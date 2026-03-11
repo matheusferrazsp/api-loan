@@ -11,6 +11,11 @@ import {
   getTotalReturned,
   getTotalCirculating,
 } from "../controllers/clientController.js";
+import {
+  createPayment,
+  getPayments,
+  deletePayment,
+} from "../controllers/paymentController.js";
 import { authenticate } from "../middlewares/auth.js";
 
 export async function clientRoutes(fastify) {
@@ -27,4 +32,9 @@ export async function clientRoutes(fastify) {
   fastify.get("/dashboard/total-outflow", getTotalOutflow);
   fastify.get("/dashboard/total-returned", getTotalReturned);
   fastify.get("/dashboard/total-circulating", getTotalCirculating);
+
+  // Rotas de Pagamentos
+  fastify.post("/clients/:id/payments", createPayment);
+  fastify.get("/clients/:id/payments", getPayments);
+  fastify.delete("/clients/:id/payments/:paymentId", deletePayment);
 }
