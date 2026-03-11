@@ -283,23 +283,83 @@ export const deleteClient = async (request, reply) => {
 
 export const getAnnualStats = async (request, reply) => {
   const userId = request.user.id;
-  const currentYear = new Date().getFullYear();
+  const now = new Date();
+  let currentYear = now.getFullYear();
 
-  const clients = await prisma.client.findMany({
-    where: {
-      userId,
-      // Filtramos clientes criados no ano atual para o gráfico anual
-      createdAt: {
-        gte: new Date(`${currentYear}-01-01`),
-        lte: new Date(`${currentYear}-12-31`),
-      },
-    },
-    select: {
-      value: true, // Saída (O quanto você tirou do bolso)
-      valuePaid: true, // Entrada (O quanto já voltou para você)
-      createdAt: true,
-    },
+  const getYearRange = (year) => ({
+    start: new Date(`${year}-01-01T00:00:00Z`),
+    end: new Date(`${year}-12-31T23:59:59Z`),
   });
+
+  const fetchYearData = async (year) => {
+    const { start, end } = getYearRange(year);
+
+    const [clients, payments, legacyEntries] = await Promise.all([
+      prisma.client.findMany({
+        where: {
+          userId,
+          loanDate: {
+            gte: start,
+            lte: end,
+          },
+        },
+        select: {
+          id: true,
+          value: true,
+          loanDate: true,
+        },
+      }),
+      prisma.payment.findMany({
+        where: {
+          date: {
+            gte: start,
+            lte: end,
+          },
+          client: {
+            userId,
+          },
+        },
+        select: {
+          amount: true,
+          date: true,
+        },
+      }),
+      prisma.client.findMany({
+        where: {
+          userId,
+          lastPaymentDate: {
+            gte: start,
+            lte: end,
+          },
+          lastPaymentAmount: {
+            gt: 0,
+          },
+          // Evita duplicar para clientes que já usam histórico na tabela Payment
+          payments: {
+            none: {},
+          },
+        },
+        select: {
+          lastPaymentAmount: true,
+          lastPaymentDate: true,
+        },
+      }),
+    ]);
+
+    return { clients, payments, legacyEntries };
+  };
+
+  let { clients, payments, legacyEntries } = await fetchYearData(currentYear);
+
+  // Se o ano atual não tiver movimentação, tenta o ano anterior
+  if (
+    clients.length === 0 &&
+    payments.length === 0 &&
+    legacyEntries.length === 0
+  ) {
+    currentYear = currentYear - 1;
+    ({ clients, payments, legacyEntries } = await fetchYearData(currentYear));
+  }
 
   const months = [
     "Janeiro",
@@ -317,19 +377,40 @@ export const getAnnualStats = async (request, reply) => {
   ];
 
   const stats = months.map((month, index) => {
-    // Agrupamos pelo mês de criação do registro/empréstimo
-    const monthData = clients.filter(
-      (c) => new Date(c.createdAt).getMonth() === index,
-    );
+    // Agrupamos saídas pelo mês da data do empréstimo (loanDate)
+    const monthDataLoans = clients.filter((c) => {
+      const loanDate = new Date(c.loanDate);
+      return loanDate.getUTCMonth() === index;
+    });
+
+    // Agrupamos entradas pelo mês da data do pagamento
+    const monthDataPayments = payments.filter((p) => {
+      const paymentDate = new Date(p.date);
+      return paymentDate.getUTCMonth() === index;
+    });
+
+    const monthDataLegacyEntries = legacyEntries.filter((c) => {
+      const paymentDate = new Date(c.lastPaymentDate);
+      return paymentDate.getUTCMonth() === index;
+    });
 
     // Soma convertendo Decimal para Number para o Recharts não bugar
-    const exit = monthData.reduce((acc, c) => acc + Number(c.value), 0);
-    const entry = monthData.reduce((acc, c) => acc + Number(c.valuePaid), 0);
+    const exit = monthDataLoans.reduce((acc, c) => acc + Number(c.value), 0);
+    const entryFromPayments = monthDataPayments.reduce(
+      (acc, p) => acc + Number(p.amount),
+      0,
+    );
+    const entryFromLegacy = monthDataLegacyEntries.reduce(
+      (acc, c) => acc + Number(c.lastPaymentAmount),
+      0,
+    );
+
+    const entry = entryFromPayments + entryFromLegacy;
 
     return { month, entry, exit };
   });
 
-  return stats;
+  return reply.send(stats);
 };
 
 export const getClientsStatusStats = async (request, reply) => {
@@ -471,34 +552,27 @@ export const getTotalLoanInterest = async (request, reply) => {
 
 export const getTotalOutflow = async (request, reply) => {
   try {
+    const userId = request.user.id;
     const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
 
-    // 1. Define o período do Mês Atual
-    const startOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    // 1. Define o período do Mês Atual (usando UTC)
+    const startOfThisMonth = new Date(
+      `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-01T00:00:00Z`,
+    );
     const endOfThisMonth = new Date(
-      today.getFullYear(),
-      today.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
+      `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-31T23:59:59Z`,
     );
 
-    // 2. Define o período do Mês Passado (para calcular a porcentagem)
+    // 2. Define o período do Mês Passado (usando UTC)
+    const lastMonthNum = currentMonth === 0 ? 12 : currentMonth;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
     const startOfLastMonth = new Date(
-      today.getFullYear(),
-      today.getMonth() - 1,
-      1,
+      `${lastMonthYear}-${String(lastMonthNum).padStart(2, "0")}-01T00:00:00Z`,
     );
     const endOfLastMonth = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      0,
-      23,
-      59,
-      59,
-      999,
+      `${lastMonthYear}-${String(lastMonthNum).padStart(2, "0")}-31T23:59:59Z`,
     );
 
     // 3. Busca a soma no banco: Apenas empréstimos com loanDate neste mês
@@ -507,9 +581,10 @@ export const getTotalOutflow = async (request, reply) => {
         value: true, // Soma o valor total emprestado
       },
       where: {
+        userId,
         loanDate: {
-          gte: startOfThisMonth, // Maior ou igual ao 1º dia do mês
-          lte: endOfThisMonth, // Menor ou igual ao último dia do mês
+          gte: startOfThisMonth,
+          lte: endOfThisMonth,
         },
       },
     });
@@ -520,6 +595,7 @@ export const getTotalOutflow = async (request, reply) => {
         value: true,
       },
       where: {
+        userId,
         loanDate: {
           gte: startOfLastMonth,
           lte: endOfLastMonth,
