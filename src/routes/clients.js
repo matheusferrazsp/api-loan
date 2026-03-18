@@ -10,6 +10,7 @@ import {
   getTotalOutflow,
   getTotalReturned,
   getTotalCirculating,
+  getTotalLoanValuePaidOff,
 } from "../controllers/clientController.js";
 import {
   createPayment,
@@ -32,6 +33,7 @@ export async function clientRoutes(fastify) {
   fastify.get("/dashboard/total-outflow", getTotalOutflow);
   fastify.get("/dashboard/total-returned", getTotalReturned);
   fastify.get("/dashboard/total-circulating", getTotalCirculating);
+  fastify.get("/dashboard/paid-off", getTotalLoanValuePaidOff);
 
   // Rotas de Pagamentos
   fastify.post("/clients/:id/payments", createPayment);

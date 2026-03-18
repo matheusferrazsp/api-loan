@@ -735,3 +735,42 @@ export const getTotalCirculating = async (request, reply) => {
     return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };
+
+export const getTotalLoanValuePaidOff = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Define o período do mês atual
+    const startOfMonth = new Date(currentYear, currentMonth, 1);
+    const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+    // Busca a soma dos empréstimos (value) de clientes com dívida quitada
+    // que tiveram último pagamento neste mês
+    const stats = await prisma.client.aggregate({
+      where: {
+        userId,
+        totalDebtPaid: true, // Apenas clientes que quitaram a dívida
+        lastPaymentDate: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      _sum: {
+        value: true, // Soma o valor do empréstimo original
+      },
+    });
+
+    const totalLoanValue = Number(stats._sum.value) || 0;
+
+    return reply.send({
+      totalLoanValuePaidOff: totalLoanValue,
+      month: `${String(currentMonth + 1).padStart(2, "0")}/${currentYear}`,
+    });
+  } catch (error) {
+    console.error("Erro ao obter valor total de empréstimos quitados:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
