@@ -51,6 +51,7 @@ export const createClient = async (request, reply) => {
         observations: data.observations,
         userId,
         monthlyFeePaid: String(data.monthlyFeePaid) === "true",
+        isDelinquent: String(data.isDelinquent) === "true",
         totalDebtPaid: String(data.totalDebtPaid) === "true",
       },
     });
@@ -133,6 +134,25 @@ export const getClients = async (request, reply) => {
   }
 };
 
+export const getDelinquentClients = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+
+    const clients = await prisma.client.findMany({
+      where: {
+        userId,
+        isDelinquent: true,
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return reply.send(clients);
+  } catch (error) {
+    console.error("Erro ao listar clientes inadimplentes:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
+
 export async function updateClient(request, reply) {
   const { id } = request.params;
   const body = request.body;
@@ -205,6 +225,10 @@ export async function updateClient(request, reply) {
       monthlyFeePaid:
         restOfData.monthlyFeePaid !== undefined
           ? String(restOfData.monthlyFeePaid) === "true"
+          : undefined,
+      isDelinquent:
+        restOfData.isDelinquent !== undefined
+          ? String(restOfData.isDelinquent) === "true"
           : undefined,
       totalDebtPaid:
         restOfData.totalDebtPaid !== undefined

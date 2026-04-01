@@ -46,6 +46,7 @@ model Client {
   
   // Status
   monthlyFeePaid     Boolean  @default(false)
+  isDelinquent       Boolean  @default(false)
   totalDebtPaid      Boolean  @default(false)
   observations       String?  @db.Text
 

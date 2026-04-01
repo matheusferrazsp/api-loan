@@ -1,6 +1,7 @@
 import {
   createClient,
   getClients,
+  getDelinquentClients,
   deleteClient,
   updateClient,
   getAnnualStats,
@@ -24,6 +25,7 @@ export async function clientRoutes(fastify) {
 
   fastify.post("/clients", createClient);
   fastify.get("/clients", getClients);
+  fastify.get("/clients/delinquent", getDelinquentClients);
   fastify.delete("/clients/:id", deleteClient);
   fastify.put("/clients/:id", updateClient);
   fastify.get("/dashboard/annual-stats", getAnnualStats);
