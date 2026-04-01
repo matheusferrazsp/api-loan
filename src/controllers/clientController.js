@@ -84,7 +84,6 @@ export const getClients = async (request, reply) => {
         const dueDate = new Date(client.nextPaymentDate);
         dueDate.setHours(0, 0, 0, 0);
 
-        // Só considera atrasado se HOJE for MAIOR que o VENCIMENTO
         const isOverdue = today.getTime() > dueDate.getTime();
 
         let updatedLateInstallments = client.lateInstallments;
@@ -157,7 +156,6 @@ export async function updateClient(request, reply) {
   const { id } = request.params;
   const body = request.body;
 
-  // Removemos campos intrusos que causam erro no Prisma
   const {
     userId,
     createdAt,
@@ -236,7 +234,6 @@ export async function updateClient(request, reply) {
           : undefined,
     };
 
-    // Se confirmPayment=true, registra o pagamento na tabela Payment atomicamente
     const shouldRegisterPayment =
       String(confirmPayment) === "true" &&
       restOfData.lastPaymentAmount &&
@@ -270,9 +267,7 @@ export async function updateClient(request, reply) {
       });
     }
 
-    console.log("🔊 Disparando evento WebSocket para os clientes...");
-
-    request.server.io.emit("clientesAtualizados");
+    // request.server.io.emit("clientesAtualizados");
 
     return reply.send(updatedClient);
   } catch (error) {
@@ -297,7 +292,7 @@ export const deleteClient = async (request, reply) => {
     await prisma.client.delete({
       where: { id },
     });
-    request.server.io.emit("clientesAtualizados");
+    // request.server.io.emit("clientesAtualizados");
     return reply.status(204).send();
   } catch (error) {
     console.error("Erro ao deletar cliente:", error);
@@ -322,6 +317,7 @@ export const getAnnualStats = async (request, reply) => {
       prisma.client.findMany({
         where: {
           userId,
+          isDelinquent: false,
           loanDate: {
             gte: start,
             lte: end,
@@ -447,6 +443,7 @@ export const getClientsStatusStats = async (request, reply) => {
         userId,
         totalDebtPaid: false,
         lateInstallments: { gt: 0 },
+        isDelinquent: false,
       },
     });
 
@@ -456,6 +453,7 @@ export const getClientsStatusStats = async (request, reply) => {
         userId,
         totalDebtPaid: false,
         lateInstallments: 0,
+        isDelinquent: false,
       },
     });
 
@@ -485,6 +483,7 @@ export const getMonthlySummary = async (request, reply) => {
     const entries = await prisma.client.aggregate({
       where: {
         userId,
+        isDelinquent: false,
         lastPaymentDate: {
           gte: firstDay,
           lte: lastDay,
@@ -538,7 +537,7 @@ export const getTotalLoanInterest = async (request, reply) => {
       where: {
         userId,
         totalDebtPaid: false,
-        createdAt: { gte: startCurrent, lt: endCurrent },
+        isDelinquent: false,
       },
       _sum: { monthlyPaid: true },
     });
@@ -548,6 +547,8 @@ export const getTotalLoanInterest = async (request, reply) => {
       where: {
         userId,
         totalDebtPaid: false,
+        isDelinquent: false,
+
         createdAt: { gte: startLast, lt: endLast },
       },
       _sum: { monthlyPaid: true },
@@ -606,6 +607,7 @@ export const getTotalOutflow = async (request, reply) => {
       },
       where: {
         userId,
+        isDelinquent: false,
         loanDate: {
           gte: startOfThisMonth,
           lte: endOfThisMonth,
@@ -620,6 +622,7 @@ export const getTotalOutflow = async (request, reply) => {
       },
       where: {
         userId,
+        isDelinquent: false,
         loanDate: {
           gte: startOfLastMonth,
           lte: endOfLastMonth,
@@ -654,26 +657,24 @@ export const getTotalOutflow = async (request, reply) => {
 
 export const getTotalReturned = async (request, reply) => {
   try {
-    const userId = request.user.id; // Se você usa autenticação por usuário, mantenha!
+    const userId = request.user.id;
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    // Datas para os filtros
     const startCurrent = new Date(currentYear, currentMonth, 1);
     const endCurrent = new Date(currentYear, currentMonth + 1, 1);
 
     const startLast = new Date(currentYear, currentMonth - 1, 1);
     const endLast = new Date(currentYear, currentMonth, 1);
 
-    // A MUDANÇA ESTÁ AQUI: Filtramos por lastPaymentDate e somamos lastPaymentAmount
     const [currentStats, lastStats] = await Promise.all([
       prisma.client.aggregate({
         where: {
           userId,
           lastPaymentDate: { gte: startCurrent, lt: endCurrent },
         },
-        _sum: { lastPaymentAmount: true }, // Soma apenas o dinheiro que entrou no pagamento atual
+        _sum: { lastPaymentAmount: true },
       }),
       prisma.client.aggregate({
         where: {
@@ -684,11 +685,9 @@ export const getTotalReturned = async (request, reply) => {
       }),
     ]);
 
-    // Pegamos o valor da nova soma
     const currentTotal = Number(currentStats._sum.lastPaymentAmount) || 0;
     const lastTotal = Number(lastStats._sum.lastPaymentAmount) || 0;
 
-    // Cálculo da diferença percentual
     let diffPercentage = 0;
     if (lastTotal > 0) {
       diffPercentage = ((currentTotal - lastTotal) / lastTotal) * 100;
@@ -713,11 +712,11 @@ export const getTotalCirculating = async (request, reply) => {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    // 1. Soma apenas de clientes que AINDA NÃO QUITARAM (Circulando hoje)
     const totalStats = await prisma.client.aggregate({
       where: {
         userId,
-        totalDebtPaid: false, // Filtro crucial: remove quem já quitou tudo
+        totalDebtPaid: false,
+        isDelinquent: false,
       },
       _sum: {
         value: true,
@@ -731,6 +730,7 @@ export const getTotalCirculating = async (request, reply) => {
         userId,
         totalDebtPaid: false, // Mantemos o critério de dívida ativa
         createdAt: { lt: lastMonthLimit },
+        isDelinquent: false,
       },
       _sum: {
         value: true,
