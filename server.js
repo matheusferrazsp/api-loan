@@ -23,6 +23,7 @@ await server.register(cors, {
   origin: [
     "http://localhost:5173",
     "https://frontend-loan-production.up.railway.app",
+    "https://veroflux.com.br",
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
 });
@@ -42,6 +43,7 @@ const io = new Server(server.server, {
     origin: [
       "http://localhost:5173",
       "https://frontend-loan-production.up.railway.app",
+      "https://veroflux.com.br",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
