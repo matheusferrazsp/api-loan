@@ -72,9 +72,16 @@ export const getUsers = async (request, reply) => {
 export const getUserById = async (request, reply) => {
   try {
     const { id } = request.params;
+    const parsedId = parseInt(id, 10);
+
+    if (Number.isNaN(parsedId)) {
+      return reply.status(400).send({
+        error: "ID de usuário inválido",
+      });
+    }
 
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parsedId },
       select: {
         id: true,
         email: true,
@@ -204,5 +211,135 @@ export const resetPassword = async (request, reply) => {
     return reply.send({ message: "Senha atualizada com sucesso!" });
   } catch (error) {
     return reply.status(500).send({ error: "Erro ao atualizar senha." });
+  }
+};
+
+export const updateUserProfile = async (request, reply) => {
+  try {
+    const { id } = request.params;
+    const { email, name } = request.body;
+
+    const userId = parseInt(id, 10);
+    const authenticatedUserId = Number(request.user?.id);
+
+    if (Number.isNaN(userId)) {
+      return reply.status(400).send({ error: "ID de usuário inválido" });
+    }
+
+    if (!authenticatedUserId || authenticatedUserId !== userId) {
+      return reply.status(403).send({ error: "Acesso negado" });
+    }
+
+    if (!email || !name) {
+      return reply.status(400).send({
+        error: "Email e name são obrigatórios",
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!existingUser) {
+      return reply.status(404).send({ error: "Usuário não encontrado" });
+    }
+
+    const duplicatedEmailUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (duplicatedEmailUser && duplicatedEmailUser.id !== userId) {
+      return reply.status(409).send({ error: "Email já cadastrado" });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email,
+        name,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return reply.send(updatedUser);
+  } catch (error) {
+    console.error("Erro ao atualizar perfil:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
+
+export const changePassword = async (request, reply) => {
+  try {
+    const { id } = request.params;
+    const { currentPassword, newPassword } = request.body;
+
+    const userId = parseInt(id, 10);
+    const authenticatedUserId = Number(request.user?.id);
+
+    if (Number.isNaN(userId)) {
+      return reply.status(400).send({ error: "ID de usuário inválido" });
+    }
+
+    if (!authenticatedUserId || authenticatedUserId !== userId) {
+      return reply.status(403).send({ error: "Acesso negado" });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return reply.status(400).send({
+        error: "currentPassword e newPassword são obrigatórios",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return reply.status(400).send({
+        error: "Nova senha deve ter pelo menos 6 caracteres",
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return reply.status(400).send({
+        error: "A nova senha deve ser diferente da senha atual",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      return reply.status(404).send({ error: "Usuário não encontrado" });
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      return reply.status(400).send({ error: "Senha atual incorreta" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    return reply.send({ message: "Senha alterada com sucesso" });
+  } catch (error) {
+    console.error("Erro ao alterar senha:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };

@@ -2,6 +2,8 @@ import {
   createUser,
   getUsers,
   getUserById,
+  updateUserProfile,
+  changePassword,
   login,
   forgotPassword,
   resetPassword,
@@ -17,4 +19,10 @@ export async function userRoutes(fastify) {
 
   fastify.get("/users", { preHandler: [authenticate] }, getUsers);
   fastify.get("/users/:id", { preHandler: [authenticate] }, getUserById);
+  fastify.put("/users/:id", { preHandler: [authenticate] }, updateUserProfile);
+  fastify.put(
+    "/users/:id/change-password",
+    { preHandler: [authenticate] },
+    changePassword,
+  );
 }
