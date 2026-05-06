@@ -73,7 +73,9 @@ export const getClients = async (request, reply) => {
     today.setHours(0, 0, 0, 0);
 
     const clients = await prisma.client.findMany({
-      where: { userId },
+      where: {
+        userId,
+      },
       orderBy: { name: "asc" },
     });
 
