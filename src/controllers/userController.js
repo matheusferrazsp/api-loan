@@ -158,8 +158,18 @@ export const forgotPassword = async (request, reply) => {
       return reply.send({ message: "Link enviado se o e-mail existir." });
     }
 
-    // Lógica do token que já fizemos...
     const token = crypto.randomBytes(20).toString("hex");
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // Expira em 1 hora
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: token,
+        passwordResetExpires: expiresAt,
+      },
+    });
 
     // Chamada do Resend (é muito mais simples que o Nodemailer)
     await resend.emails.send({
@@ -187,7 +197,7 @@ export const resetPassword = async (request, reply) => {
       where: {
         passwordResetToken: token,
         passwordResetExpires: {
-          gt: new Date(), // "gt" significa maior que (data atual)
+          gt: new Date(),
         },
       },
     });
@@ -203,7 +213,7 @@ export const resetPassword = async (request, reply) => {
       where: { id: user.id },
       data: {
         password: hashedPassword,
-        passwordResetToken: null, // Limpa para não usar de novo
+        passwordResetToken: null,
         passwordResetExpires: null,
       },
     });
