@@ -580,80 +580,50 @@ export const getTotalLoanInterest = async (request, reply) => {
 export const getTotalOutflow = async (request, reply) => {
   try {
     const userId = request.user.id;
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
-    // 1. Define o período do Mês Atual (usando UTC)
-    const startOfThisMonth = new Date(
-      `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-01T00:00:00Z`,
-    );
-    const endOfThisMonth = new Date(
-      `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-31T23:59:59Z`,
-    );
+    const startCurrent = new Date(currentYear, currentMonth, 1);
+    const endCurrent = new Date(currentYear, currentMonth + 1, 1);
 
-    // 2. Define o período do Mês Passado (usando UTC)
-    const lastMonthNum = currentMonth === 0 ? 12 : currentMonth;
-    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const startOfLastMonth = new Date(
-      `${lastMonthYear}-${String(lastMonthNum).padStart(2, "0")}-01T00:00:00Z`,
-    );
-    const endOfLastMonth = new Date(
-      `${lastMonthYear}-${String(lastMonthNum).padStart(2, "0")}-31T23:59:59Z`,
-    );
+    const startLast = new Date(currentYear, currentMonth - 1, 1);
+    const endLast = new Date(currentYear, currentMonth, 1);
 
-    // 3. Busca a soma no banco: Apenas empréstimos com loanDate neste mês
-    const currentMonthData = await prisma.client.aggregate({
-      _sum: {
-        value: true, // Soma o valor total emprestado
-      },
-      where: {
-        userId,
-        isDelinquent: false,
-        loanDate: {
-          gte: startOfThisMonth,
-          lte: endOfThisMonth,
+    const [currentStats, lastStats] = await Promise.all([
+      prisma.client.aggregate({
+        where: {
+          userId,
+          loanDate: { gte: startCurrent, lt: endCurrent },
         },
-      },
-    });
-
-    // 4. Busca a soma do mês passado usando a loanDate
-    const lastMonthData = await prisma.client.aggregate({
-      _sum: {
-        value: true,
-      },
-      where: {
-        userId,
-        isDelinquent: false,
-        loanDate: {
-          gte: startOfLastMonth,
-          lte: endOfLastMonth,
+        _sum: { value: true },
+      }),
+      prisma.client.aggregate({
+        where: {
+          userId,
+          loanDate: { gte: startLast, lt: endLast },
         },
-      },
-    });
+        _sum: { value: true },
+      }),
+    ]);
 
-    // Pega os resultados (se for null, vira 0)
-    const totalThisMonth = currentMonthData._sum.value || 0;
-    const totalLastMonth = lastMonthData._sum.value || 0;
+    const currentTotal = Number(currentStats._sum.value) || 0;
+    const lastTotal = Number(lastStats._sum.value) || 0;
 
-    // 5. Calcula a porcentagem de diferença
     let diffPercentage = 0;
-    if (totalLastMonth === 0) {
-      // Se mês passado foi 0 e esse mês tem valor, o aumento é de 100%
-      diffPercentage = totalThisMonth > 0 ? 100 : 0;
-    } else {
-      diffPercentage =
-        ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100;
+    if (lastTotal > 0) {
+      diffPercentage = ((currentTotal - lastTotal) / lastTotal) * 100;
+    } else if (currentTotal > 0) {
+      diffPercentage = 100;
     }
 
-    // Retorna exatamente a estrutura que o seu Frontend (React) está esperando
     return reply.send({
-      totalOutflow: totalThisMonth,
-      diffPercentage: Number(diffPercentage.toFixed(2)),
+      totalOutflow: currentTotal,
+      diffPercentage: parseFloat(diffPercentage.toFixed(2)),
     });
   } catch (error) {
-    console.error("Erro ao calcular saídas totais:", error);
-    return reply.status(500).send({ error: "Erro interno no servidor" });
+    console.error("Erro ao obter total devolvido:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };
 
