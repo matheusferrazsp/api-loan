@@ -57,8 +57,8 @@ export const createCheckoutSession = async (request, reply) => {
       subscription_data: {
         trial_period_days: 3,
       },
-      success_url: `${process.env.FRONTEND_URL || "http://localhost:5173"}/account?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL || "http://localhost:5173"}/account?canceled=true`,
+      success_url: `${process.env.FRONTEND_URL || "https://veroflux.com.br"}/account?success=true`,
+      cancel_url: `${process.env.FRONTEND_URL || "https://veroflux.com.br"}/account?canceled=true`,
     });
 
     return reply.send({ url: session.url });
@@ -87,7 +87,7 @@ export const createPortalSession = async (request, reply) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${process.env.FRONTEND_URL || "http://localhost:5173"}/account`,
+      return_url: `${process.env.FRONTEND_URL || "https://veroflux.com.br"}/account`,
     });
 
     return reply.send({ url: session.url });
