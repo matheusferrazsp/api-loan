@@ -269,7 +269,7 @@ export async function updateClient(request, reply) {
       });
     }
 
-    // request.server.io.emit("clientesAtualizados");
+    request.server.io.emit("clientesAtualizados");
 
     return reply.send(updatedClient);
   } catch (error) {
@@ -294,7 +294,7 @@ export const deleteClient = async (request, reply) => {
     await prisma.client.delete({
       where: { id },
     });
-    // request.server.io.emit("clientesAtualizados");
+    request.server.io.emit("clientesAtualizados");
     return reply.status(204).send();
   } catch (error) {
     console.error("Erro ao deletar cliente:", error);
