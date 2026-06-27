@@ -2,6 +2,9 @@ import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma.js";
 import crypto from "node:crypto";
 import { resend } from "../lib/mail.js";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
 export const createUser = async (request, reply) => {
   try {
@@ -31,12 +34,17 @@ export const createUser = async (request, reply) => {
         email,
         name,
         password: hashedPassword,
+        subscriptionStatus: 'pending',
       },
       select: {
         id: true,
         email: true,
         name: true,
         createdAt: true,
+        subscriptionStatus: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        isLifetime: true,
       },
     });
 
@@ -87,6 +95,10 @@ export const getUserById = async (request, reply) => {
         email: true,
         name: true,
         createdAt: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        subscriptionStatus: true,
+        isLifetime: true,
       },
     });
 
@@ -138,6 +150,10 @@ export const login = async (request, reply) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        subscriptionStatus: user.subscriptionStatus,
+        stripeCustomerId: user.stripeCustomerId,
+        stripeSubscriptionId: user.stripeSubscriptionId,
+        isLifetime: user.isLifetime,
       },
       token,
     });
@@ -351,5 +367,62 @@ export const changePassword = async (request, reply) => {
   } catch (error) {
     console.error("Erro ao alterar senha:", error);
     return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};
+
+export const checkSubscriptionStatus = async (request, reply) => {
+  try {
+    const { id } = request.params;
+    const userId = parseInt(id, 10);
+    const authenticatedUserId = Number(request.user?.id);
+
+    if (userId !== authenticatedUserId) {
+      return reply.status(403).send({ error: "Acesso negado" });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return reply.status(404).send({ error: "Usuário não encontrado" });
+
+    // Se ele já for vitalício ou ativo, apenas retorna o status
+    if (user.isLifetime || user.subscriptionStatus === "active") {
+      return reply.send(user);
+    }
+
+    if (user.stripeCustomerId) {
+      // Busca assinaturas no Stripe
+      const subscriptions = await stripe.subscriptions.list({
+        customer: user.stripeCustomerId,
+        status: "all",
+        limit: 1,
+      });
+
+      if (subscriptions.data.length > 0) {
+        const sub = subscriptions.data[0];
+        let newStatus = sub.status;
+        
+        if (newStatus === "trialing" || newStatus === "active") {
+          newStatus = "active";
+        } else if (newStatus === "past_due") {
+          newStatus = "past_due";
+        } else if (newStatus === "canceled") {
+          newStatus = "canceled";
+        }
+
+        const updatedUser = await prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscriptionStatus: newStatus,
+            stripeSubscriptionId: sub.id,
+            ...(sub.current_period_end ? { subscriptionExpiresAt: new Date(sub.current_period_end * 1000) } : {})
+          },
+        });
+        return reply.send(updatedUser);
+      }
+    }
+
+    return reply.send(user);
+  } catch (error) {
+    console.error("Erro ao checar status:", error);
+    return reply.status(500).send({ error: "Erro interno" });
   }
 };

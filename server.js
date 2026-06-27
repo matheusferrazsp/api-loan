@@ -7,6 +7,10 @@ import cors from "@fastify/cors";
 import { Server } from "socket.io";
 import { userRoutes } from "./src/routes/users.js";
 import { clientRoutes } from "./src/routes/clients.js";
+import { subscriptionRoutes } from "./src/routes/subscription.js";
+import { adminRoutes } from "./src/routes/admin.js";
+import { startBillingCronJobs } from "./src/jobs/billingCron.js";
+import fastifyRawBody from "fastify-raw-body";
 
 const PORT = process.env.PORT || 3333;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -17,6 +21,13 @@ const server = fastify({
 
 await server.register(fastifyJwt, {
   secret: process.env.JWT_SECRET,
+});
+
+await server.register(fastifyRawBody, {
+  field: 'rawBody',
+  global: false,
+  encoding: 'utf8',
+  runFirst: true,
 });
 
 await server.register(cors, {
@@ -30,6 +41,8 @@ await server.register(cors, {
 
 await server.register(userRoutes);
 await server.register(clientRoutes);
+await server.register(subscriptionRoutes);
+await server.register(adminRoutes);
 
 server.get("/health", async () => {
   return { status: "ok" };
@@ -66,7 +79,10 @@ io.on("connection", (socket) => {
 
 const start = async () => {
   try {
-    // 4. Agora sim, ligamos a porta!
+    // 4. Iniciar Cron Jobs
+    startBillingCronJobs(server);
+
+    // 5. Agora sim, ligamos a porta!
     await server.listen({ port: PORT, host: HOST });
     server.log.info(`Servidor rodando na porta ${PORT}`);
   } catch (err) {

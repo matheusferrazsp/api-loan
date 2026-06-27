@@ -14,6 +14,14 @@ model User {
   password  String
   passwordResetToken    String?   
   passwordResetExpires  DateTime? 
+  
+  // Assinatura e Pagamentos
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  subscriptionStatus    String?   @default("active") // active, past_due, canceled
+  subscriptionExpiresAt DateTime?
+  isLifetime            Boolean   @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   clients Client[]

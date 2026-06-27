@@ -18,10 +18,11 @@ import {
   getPayments,
   deletePayment,
 } from "../controllers/paymentController.js";
-import { authenticate } from "../middlewares/auth.js";
+import { authenticate, requireActiveSubscription } from "../middlewares/auth.js";
 
 export async function clientRoutes(fastify) {
   fastify.addHook("preHandler", authenticate);
+  fastify.addHook("preHandler", requireActiveSubscription);
 
   fastify.post("/clients", createClient);
   fastify.get("/clients", getClients);
