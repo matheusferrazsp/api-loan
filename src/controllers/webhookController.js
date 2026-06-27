@@ -28,7 +28,7 @@ export const handleStripeWebhook = async (request, reply) => {
           await prisma.user.updateMany({
             where: { stripeCustomerId: invoice.customer },
             data: {
-              subscriptionStatus: 'active',
+              subscriptionStatus: subscription.status,
               subscriptionExpiresAt: new Date(subscription.current_period_end * 1000),
               stripeSubscriptionId: subscription.id,
             },

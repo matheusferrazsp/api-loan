@@ -189,9 +189,9 @@ export const forgotPassword = async (request, reply) => {
 
     // Chamada do Resend (é muito mais simples que o Nodemailer)
     await resend.emails.send({
-      from: "sistema@matheusferrazdev.com.br",
+      from: "VeroFlux <suporte@veroflux.com.br>",
       to: email,
-      subject: "Redefinição de Senha - LoanX",
+      subject: "Redefinição de Senha - VeroFlux",
       html: `<h1>Olá ${user.name}!</h1> <br>
       <p>Clique no link abaixo para redefinir a sua senha, caso não tenha solicitado ignore este email: <br><br>
       <a href="https://veroflux.com.br/reset-password?token=${token}">Resetar</a></p>`,
