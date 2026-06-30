@@ -66,7 +66,7 @@ export const createCheckoutSession = async (request, reply) => {
     request.log.error(error);
     return reply
       .status(500)
-      .send({ message: "Erro ao criar sessão de checkout" });
+      .send({ message: "Erro ao criar sessão de checkout: " + error.message });
   }
 };
 
