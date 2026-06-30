@@ -23,13 +23,11 @@ import { authenticate, requireActiveSubscription } from "../middlewares/auth.js"
 
 export async function clientRoutes(fastify) {
   fastify.addHook("preHandler", authenticate);
-  fastify.addHook("preHandler", requireActiveSubscription);
+  // O hook global de requireActiveSubscription foi removido para permitir leitura
 
-  fastify.post("/clients", createClient);
+  // Rotas GET (Leitura) - Liberadas
   fastify.get("/clients", getClients);
   fastify.get("/clients/delinquent", getDelinquentClients);
-  fastify.delete("/clients/:id", deleteClient);
-  fastify.put("/clients/:id", updateClient);
   fastify.get("/dashboard/annual-stats", getAnnualStats);
   fastify.get("/stats/status", getClientsStatusStats);
   fastify.get("/dashboard/monthly-summary", getMonthlySummary);
@@ -39,9 +37,13 @@ export async function clientRoutes(fastify) {
   fastify.get("/dashboard/total-circulating", getTotalCirculating);
   fastify.get("/dashboard/paid-off", getTotalLoanValuePaidOff);
   fastify.get("/dashboard/pending-receipts", getPendingReceipts);
-
-  // Rotas de Pagamentos
-  fastify.post("/clients/:id/payments", createPayment);
   fastify.get("/clients/:id/payments", getPayments);
-  fastify.delete("/clients/:id/payments/:paymentId", deletePayment);
+
+  // Rotas de Mutação (POST, PUT, DELETE) - Bloqueadas para inadimplentes/pendentes
+  fastify.post("/clients", { preHandler: [requireActiveSubscription] }, createClient);
+  fastify.delete("/clients/:id", { preHandler: [requireActiveSubscription] }, deleteClient);
+  fastify.put("/clients/:id", { preHandler: [requireActiveSubscription] }, updateClient);
+  
+  fastify.post("/clients/:id/payments", { preHandler: [requireActiveSubscription] }, createPayment);
+  fastify.delete("/clients/:id/payments/:paymentId", { preHandler: [requireActiveSubscription] }, deletePayment);
 }
