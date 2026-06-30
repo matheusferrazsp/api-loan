@@ -25,6 +25,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   clients Client[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Client {
@@ -83,6 +84,17 @@ model Payment {
   createdAt DateTime @default(now())
 
   @@index([clientId])
-  @@index([date])
   @@index([clientId, date])
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

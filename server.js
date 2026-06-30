@@ -9,7 +9,9 @@ import { userRoutes } from "./src/routes/users.js";
 import { clientRoutes } from "./src/routes/clients.js";
 import { subscriptionRoutes } from "./src/routes/subscription.js";
 import { adminRoutes } from "./src/routes/admin.js";
+import { pushRoutes } from "./src/routes/push.js";
 import { startBillingCronJobs } from "./src/jobs/billingCron.js";
+import { startClientNotificationsCronJobs } from "./src/jobs/clientNotificationsCron.js";
 import fastifyRawBody from "fastify-raw-body";
 
 const PORT = process.env.PORT || 3333;
@@ -43,6 +45,7 @@ await server.register(userRoutes);
 await server.register(clientRoutes);
 await server.register(subscriptionRoutes);
 await server.register(adminRoutes);
+await server.register(pushRoutes);
 
 server.get("/health", async () => {
   return { status: "ok" };
@@ -81,6 +84,7 @@ const start = async () => {
   try {
     // 4. Iniciar Cron Jobs
     startBillingCronJobs(server);
+    startClientNotificationsCronJobs(server);
 
     // 5. Agora sim, ligamos a porta!
     await server.listen({ port: PORT, host: HOST });
