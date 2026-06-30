@@ -770,3 +770,37 @@ export const getTotalLoanValuePaidOff = async (request, reply) => {
     return reply.status(500).send({ error: "Erro interno do servidor" });
   }
 };
+
+export const getPendingReceipts = async (request, reply) => {
+  try {
+    const userId = request.user.id;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+    const stats = await prisma.client.aggregate({
+      where: {
+        userId,
+        totalDebtPaid: false,
+        isDelinquent: false,
+        nextPaymentDate: {
+          lte: endOfMonth,
+        },
+      },
+      _sum: {
+        monthlyPaid: true,
+      },
+    });
+
+    const pendingTotal = Number(stats._sum.monthlyPaid) || 0;
+
+    return reply.send({
+      pendingTotal,
+    });
+  } catch (error) {
+    console.error("Erro ao obter valores a receber:", error);
+    return reply.status(500).send({ error: "Erro interno do servidor" });
+  }
+};

@@ -12,6 +12,7 @@ import {
   getTotalReturned,
   getTotalCirculating,
   getTotalLoanValuePaidOff,
+  getPendingReceipts,
 } from "../controllers/clientController.js";
 import {
   createPayment,
@@ -37,6 +38,7 @@ export async function clientRoutes(fastify) {
   fastify.get("/dashboard/total-returned", getTotalReturned);
   fastify.get("/dashboard/total-circulating", getTotalCirculating);
   fastify.get("/dashboard/paid-off", getTotalLoanValuePaidOff);
+  fastify.get("/dashboard/pending-receipts", getPendingReceipts);
 
   // Rotas de Pagamentos
   fastify.post("/clients/:id/payments", createPayment);
