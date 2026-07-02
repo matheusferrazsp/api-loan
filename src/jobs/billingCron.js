@@ -69,5 +69,8 @@ export function startBillingCronJobs(server) {
     } catch (error) {
       server.log.error(`Erro no Cron Job de cobrança: ${error.message}`);
     }
+  }, {
+    scheduled: true,
+    timezone: "America/Sao_Paulo"
   });
 }
